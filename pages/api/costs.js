@@ -1,100 +1,86 @@
-import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
 
-const REGION_COSTS = {
-  europe: 150,        // Western/Northern Europe
-  eastern_europe: 90, // Eastern Europe & Balkans
-  asia: 80,           // East/Southeast Asia
-  south_asia: 65,     // India, Nepal, Sri Lanka
-  middle_east: 100,   // Gulf & Levant
-  africa: 85,         // North & Sub-Saharan
-  americas: 120,      // North & South America
-  oceania: 160,       // Australia, NZ
-  default: 110,
-};
-
-const REGION_MAP = {
-  france: "europe",
-  spain: "europe",
-  portugal: "europe",
-  italy: "europe",
-  germany: "europe",
-  switzerland: "europe",
-  greece: "europe",
-  poland: "eastern_europe",
-  czechia: "eastern_europe",
+// Basic region mapping for realistic expense estimates
+const regionMap = {
   india: "south_asia",
   nepal: "south_asia",
-  sri_lanka: "south_asia",
+  "sri lanka": "south_asia",
   thailand: "asia",
   japan: "asia",
   singapore: "asia",
-  vietnam: "asia",
-  china: "asia",
-  uae: "middle_east",
-  saudi_arabia: "middle_east",
-  kenya: "africa",
-  tanzania: "africa",
-  morocco: "africa",
   egypt: "africa",
   usa: "americas",
+  "united states": "americas",
+  "new zealand": "oceania",
+  "south africa": "africa",
+  "united kingdom": "europe",
+  spain: "europe",
+  portugal: "europe",
+  france: "europe",
+  italy: "europe",
+  morocco: "africa",
   mexico: "americas",
   brazil: "americas",
   canada: "americas",
   australia: "oceania",
-  new_zealand: "oceania",
+  indonesia: "asia",
+  malaysia: "asia",
+  china: "asia",
+  "hong kong": "asia",
+  "south korea": "asia",
+  uae: "middle_east",
+  "saudi arabia": "middle_east",
+  turkey: "europe",
+  greece: "europe",
+};
+
+// Typical per-day cost estimates (USD) by region
+const regionCosts = {
+  europe: { avgDaily: 130, lodging: 70, food: 40, transport: 20 },
+  americas: { avgDaily: 110, lodging: 60, food: 35, transport: 15 },
+  middle_east: { avgDaily: 95, lodging: 50, food: 30, transport: 15 },
+  asia: { avgDaily: 85, lodging: 40, food: 30, transport: 15 },
+  south_asia: { avgDaily: 65, lodging: 30, food: 20, transport: 10 },
+  africa: { avgDaily: 75, lodging: 35, food: 25, transport: 15 },
+  oceania: { avgDaily: 140, lodging: 80, food: 40, transport: 20 },
 };
 
 export default async function handler(req, res) {
   try {
-    const { destinations = [] } = req.body;
-    if (!Array.isArray(destinations) || destinations.length === 0) {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const { destinations } = req.body;
+    if (!destinations || !Array.isArray(destinations) || destinations.length === 0) {
       return res.status(400).json({ error: "No destinations provided" });
     }
 
-    const results = await Promise.all(
-      destinations.map(async (dest) => {
-        const slug = dest.toLowerCase().replace(/\s+/g, "-");
-        let dailyCost = null;
+    // Compute cost estimates
+    const results = destinations.map((destRaw) => {
+      const dest = destRaw.toLowerCase().trim();
+      const region = regionMap[dest] || "europe"; // fallback to europe
+      const costData = regionCosts[region] || regionCosts.europe;
 
-        try {
-          const response = await fetch(
-            `https://api.teleport.org/api/urban_areas/slug:${slug}/details/`,
-            { timeout: 8000 }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            const costSection = data.categories.find(
-              (c) => c.id === "COST-OF-LIVING"
-            );
-            if (costSection) {
-              const costItem = costSection.data.find(
-                (d) => d.id === "COST-RESTAURANT-MEAL"
-              );
-              dailyCost = Math.round(
-                (costItem?.currency_dollar_value || 10) * 3 * 1.5
-              ); // 3 meals * markup
-            }
-          }
-        } catch (err) {
-          console.warn(`Teleport fetch failed for ${dest}`, err.message);
-        }
+      const breakdown = {
+        lodging: costData.lodging,
+        food: costData.food,
+        transport: costData.transport,
+        misc: Math.round(costData.avgDaily * 0.1),
+      };
 
-        // Use fallback if Teleport failed or returned null
-        if (!dailyCost) {
-          const key = Object.keys(REGION_MAP).find((k) =>
-            slug.includes(k)
-          );
-          const region = REGION_MAP[key] || "default";
-          dailyCost = REGION_COSTS[region];
-        }
+      return {
+        destination: destRaw,
+        region,
+        avgDaily: costData.avgDaily,
+        breakdown,
+      };
+    });
 
-        return { destination: dest, dailyCost };
-      })
-    );
-
-    res.status(200).json(results);
-  } catch (error) {
-    console.error("Cost API error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(200).json({ results });
+  } catch (err) {
+    console.error("Costs API error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
   }
 }

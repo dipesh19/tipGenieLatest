@@ -1,10 +1,9 @@
-
 import React, { useState } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
-// Minimal UI components
+/* ---------- Reusable Minimal UI Components ---------- */
 const Card = ({ children, className = "" }) => (
-  <div className={`bg-white rounded-2xl shadow-md p-4 ${className}`}>
+  <div className={`bg-white rounded-2xl shadow-lg p-5 ${className}`}>
     {children}
   </div>
 );
@@ -24,6 +23,7 @@ const Input = ({ className = "", ...props }) => (
   />
 );
 
+/* ---------- Main Component ---------- */
 export default function TravelPlanner() {
   const [formData, setFormData] = useState({
     startDate: "",
@@ -33,78 +33,56 @@ export default function TravelPlanner() {
     ],
     destinations: [],
   });
-
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Load destination suggestions dynamically (Teleport)
-  // Hybrid destination search with Teleport + local fallback
-const fallbackCities = [
-  "Paris, France",
-  "Rome, Italy",
-  "Tokyo, Japan",
-  "New York, USA",
-  "Barcelona, Spain",
-  "London, UK",
-  "Bangkok, Thailand",
-  "Istanbul, Turkey",
-  "Singapore",
-  "Dubai, UAE",
-  "Lisbon, Portugal",
-  "Bali, Indonesia",
-  "Prague, Czech Republic",
-  "Cape Town, South Africa",
-  "Toronto, Canada",
-  "Mexico City, Mexico",
-  "Sydney, Australia",
-  "Auckland, New Zealand",
-  "Marrakesh, Morocco",
-  "Kathmandu, Nepal"
-];
+  /* ---------- Destination Autocomplete ---------- */
+  const fallbackCities = [
+    "Paris, France", "Rome, Italy", "Tokyo, Japan", "New York, USA",
+    "Barcelona, Spain", "London, UK", "Bangkok, Thailand", "Istanbul, Turkey",
+    "Singapore", "Dubai, UAE", "Lisbon, Portugal", "Bali, Indonesia",
+    "Prague, Czech Republic", "Cape Town, South Africa", "Toronto, Canada",
+    "Mexico City, Mexico", "Sydney, Australia", "Auckland, New Zealand",
+    "Marrakesh, Morocco", "Kathmandu, Nepal"
+  ];
 
-const loadDestinationOptions = async (inputValue) => {
-  if (!inputValue) {
-    return fallbackCities.map((c) => ({ label: c, value: c }));
-  }
+  const loadDestinationOptions = async (inputValue) => {
+    if (!inputValue)
+      return fallbackCities.map((c) => ({ label: c, value: c }));
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 2000); // 2s timeout
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+      const res = await fetch(
+        `https://api.teleport.org/api/cities/?search=${encodeURIComponent(
+          inputValue
+        )}&limit=10`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error("Teleport fetch failed");
+      const data = await res.json();
 
-  try {
-    const res = await fetch(
-      `https://api.teleport.org/api/cities/?search=${encodeURIComponent(
-        inputValue
-      )}&limit=10`,
-      { signal: controller.signal }
-    );
-    clearTimeout(timeout);
+      const options =
+        data._embedded?.["city:search-results"]?.map((city) => ({
+          label: city.matching_full_name,
+          value: city.matching_full_name,
+        })) || [];
 
-    if (!res.ok) throw new Error("Teleport fetch failed");
-    const data = await res.json();
+      return options.length
+        ? options
+        : fallbackCities
+            .filter((c) => c.toLowerCase().includes(inputValue.toLowerCase()))
+            .map((c) => ({ label: c, value: c }));
+    } catch {
+      clearTimeout(timeout);
+      return fallbackCities
+        .filter((c) => c.toLowerCase().includes(inputValue.toLowerCase()))
+        .map((c) => ({ label: c, value: c }));
+    }
+  };
 
-    const options =
-      data._embedded?.["city:search-results"]?.map((city) => ({
-        label: city.matching_full_name,
-        value: city.matching_full_name,
-      })) || [];
-
-    if (options.length > 0) return options;
-
-    // fallback if Teleport returns nothing
-    return fallbackCities
-      .filter((c) => c.toLowerCase().includes(inputValue.toLowerCase()))
-      .map((c) => ({ label: c, value: c }));
-  } catch (err) {
-    console.warn("Teleport API fallback triggered:", err.message);
-    clearTimeout(timeout);
-    // fallback immediately
-    return fallbackCities
-      .filter((c) => c.toLowerCase().includes(inputValue.toLowerCase()))
-      .map((c) => ({ label: c, value: c }));
-  }
-};
-
-
+  /* ---------- Nationality / Residency Options ---------- */
   const loadOptions = (list) => async (inputValue) => {
     const q = (inputValue || "").toLowerCase();
     return list
@@ -113,34 +91,20 @@ const loadDestinationOptions = async (inputValue) => {
   };
 
   const nationalityOptions = [
-    "India",
-    "United States",
-    "United Kingdom",
-    "Canada",
-    "Australia",
-    "Germany",
-    "France",
-    "Japan",
-    "Singapore",
-    "China",
-    "Brazil",
-    "UAE",
+    "India", "United States", "United Kingdom", "Canada",
+    "Australia", "Germany", "France", "Japan", "Singapore",
+    "China", "Brazil", "UAE"
   ];
   const residencyOptions = [
-    "US Green Card",
-    "EU PR",
-    "Schengen Visa",
-    "UK Settlement Visa",
-    "Canadian PR",
-    "Australian PR",
-    "GCC Resident Visa",
-    "Singapore PR",
-    "Japan Residence Card",
+    "US Green Card", "EU PR", "Schengen Visa", "UK Settlement Visa",
+    "Canadian PR", "Australian PR", "GCC Resident Visa",
+    "Singapore PR", "Japan Residence Card"
   ];
 
   const loadNationalityOptions = loadOptions(nationalityOptions);
   const loadResidencyOptions = loadOptions(residencyOptions);
 
+  /* ---------- Traveler CRUD ---------- */
   const addTraveler = () =>
     setFormData((p) => ({
       ...p,
@@ -163,78 +127,105 @@ const loadDestinationOptions = async (inputValue) => {
       travelers: p.travelers.filter((_, x) => x !== i),
     }));
 
+  /* ---------- Core Logic ---------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.destinations.length === 0) return;
-    setLoading(true);
+    if (!formData.startDate || !formData.endDate || !formData.destinations.length) {
+      alert("Please pick valid dates and destinations");
+      return;
+    }
 
+    setLoading(true);
     try {
-      const [visaRes, flightRes, costRes] = await Promise.all([
-        fetch("/api/visa", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            destinations: formData.destinations.map((d) => d.value),
-            travelers: formData.travelers,
-          }),
-        }).then((r) => r.json()),
-        fetch("/api/flights", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            destinations: formData.destinations.map((d) => d.value),
-          }),
-        }).then((r) => r.json()),
+      const destList = formData.destinations.map((d) => d.value).slice(0, 5);
+      const [costsRes, flightsRes, visasRes] = await Promise.all([
         fetch("/api/costs", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ destinations: destList }),
+        }).then((r) => r.json()),
+
+        fetch("/api/flights", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ destinations: destList }),
+        }).then((r) => r.json()),
+
+        fetch("/api/visa", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            destinations: formData.destinations.map((d) => d.value),
+            destinations: destList,
+            travelers: formData.travelers,
           }),
         }).then((r) => r.json()),
       ]);
 
-      const merged = formData.destinations.map((d, i) => {
-        const dest = d.value;
-        const flight = flightRes?.[i]?.flightCost || 400;
-        const expense = costRes?.[i]?.avgDailyExpense || 100;
-        const visaFees =
-          visaRes?.results?.find((v) => v.destination === dest)?.visaFee || 0;
+      const results = destList.map((dest, i) => {
+        const costObj = costsRes?.results?.[i] || {};
+        const flightObj = Array.isArray(flightsRes) ? flightsRes[i] : {};
+        const visaObj = visasRes?.results?.find((v) => v.destination === dest) || {};
 
-        const travelerBreakdown = formData.travelers.map((t) => {
-          const total = flight + expense + visaFees;
+        const avgDaily = costObj.avgDaily || 100;
+        const breakdown = costObj.breakdown || {
+          lodging: 45, food: 35, transport: 20,
+        };
+        const flightCost = flightObj?.flightCost || 400;
+
+        const days = Math.max(
+          1,
+          Math.round(
+            (new Date(formData.endDate) - new Date(formData.startDate)) /
+              (1000 * 60 * 60 * 24)
+          )
+        );
+
+        const travelerBreakdown = formData.travelers.map((t, idx) => {
+          const visaFee =
+            Number(
+              visaObj?.data?.[idx]?.visaFee ||
+                visaObj?.data?.[idx]?.visa_fee_usd ||
+                visaObj?.visaFee ||
+                visaObj?.visa_fee_usd ||
+                0
+            );
+
+          const tripDaily = avgDaily * days;
+          const total = Math.round(flightCost + tripDaily + visaFee);
+
           return {
-            name: t.name || "Traveler",
+            name: t.name || `Traveler ${idx + 1}`,
             nationality: t.nationality,
             residency: t.residency,
-            visaFee: visaFees,
+            visaFee,
+            flightCost,
+            tripDaily,
             total,
           };
         });
 
-        const grandTotal = travelerBreakdown.reduce(
-          (acc, t) => acc + t.total,
-          0
-        );
+        const grandTotal = travelerBreakdown.reduce((a, t) => a + t.total, 0);
 
         return {
           destination: dest,
-          flight,
-          expense,
-          visaFees,
+          avgDaily,
+          breakdown,
           travelerBreakdown,
+          flightCost,
           grandTotal,
         };
       });
 
-      setResults(merged);
+      setResults(results);
     } catch (err) {
-      console.error("Failed to fetch trip data", err);
+      console.error("Trip search failed:", err);
+      alert("Something went wrong fetching data. See console.");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ---------- UI ---------- */
   return (
     <div className="p-6 bg-gradient-to-br from-indigo-50 via-pink-50 to-yellow-50 min-h-screen">
       <h1 className="text-4xl font-bold text-center text-indigo-700 mb-6">
@@ -243,6 +234,7 @@ const loadDestinationOptions = async (inputValue) => {
 
       <Card className="p-6 shadow-xl mb-8">
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Dates */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="text-sm font-medium">Start Date</label>
@@ -268,6 +260,7 @@ const loadDestinationOptions = async (inputValue) => {
             </div>
           </div>
 
+          {/* Destination Selector */}
           <div>
             <label className="text-sm font-medium">
               Select destinations to compare (city-level, up to 5)
@@ -287,6 +280,7 @@ const loadDestinationOptions = async (inputValue) => {
             />
           </div>
 
+          {/* Travelers */}
           {formData.travelers.map((t, i) => (
             <div
               key={i}
@@ -302,28 +296,16 @@ const loadDestinationOptions = async (inputValue) => {
                 loadOptions={loadNationalityOptions}
                 defaultOptions
                 placeholder="Nationality"
-                value={
-                  t.nationality
-                    ? { label: t.nationality, value: t.nationality }
-                    : null
-                }
-                onChange={(opt) =>
-                  updateTraveler(i, "nationality", opt ? opt.value : "")
-                }
+                value={t.nationality ? { label: t.nationality, value: t.nationality } : null}
+                onChange={(opt) => updateTraveler(i, "nationality", opt ? opt.value : "")}
               />
               <AsyncCreatableSelect
                 cacheOptions
                 loadOptions={loadResidencyOptions}
                 defaultOptions
                 placeholder="Residency / Visa"
-                value={
-                  t.residency
-                    ? { label: t.residency, value: t.residency }
-                    : null
-                }
-                onChange={(opt) =>
-                  updateTraveler(i, "residency", opt ? opt.value : "")
-                }
+                value={t.residency ? { label: t.residency, value: t.residency } : null}
+                onChange={(opt) => updateTraveler(i, "residency", opt ? opt.value : "")}
               />
               <Input
                 type="number"
@@ -349,6 +331,7 @@ const loadDestinationOptions = async (inputValue) => {
           </Button>
 
           <Button
+            type="submit"
             className="w-full mt-4 bg-gradient-to-r from-indigo-500 to-pink-500 text-white"
             disabled={loading}
           >
@@ -357,6 +340,7 @@ const loadDestinationOptions = async (inputValue) => {
         </form>
       </Card>
 
+      {/* Results */}
       {results.length > 0 && (
         <div>
           <h2 className="text-2xl font-semibold text-center mb-4">
@@ -367,12 +351,14 @@ const loadDestinationOptions = async (inputValue) => {
               <Card key={i} className="p-4 shadow-lg border-l-4 border-indigo-400">
                 <CardContent>
                   <h3 className="text-xl font-bold mb-2">{r.destination}</h3>
-                  <p className="text-sm text-gray-600 mb-1">Flight: ${r.flight}</p>
                   <p className="text-sm text-gray-600 mb-1">
-                    Avg Daily Expense: ${r.expense}
+                    Flight (avg): ${r.flightCost}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    Avg Daily: ${r.avgDaily}
                   </p>
                   <p className="text-sm text-gray-600 mb-2">
-                    Visa Fees (each): ${r.visaFees}
+                    Lodging: ${r.breakdown.lodging} • Food: ${r.breakdown.food} • Transport: ${r.breakdown.transport}
                   </p>
 
                   <div className="border-t pt-2 mt-3">
@@ -384,9 +370,7 @@ const loadDestinationOptions = async (inputValue) => {
                         key={idx}
                         className="flex justify-between text-sm border-b py-1"
                       >
-                        <span>
-                          {t.name} ({t.nationality})
-                        </span>
+                        <span>{t.name} ({t.nationality})</span>
                         <span>Visa: ${t.visaFee}</span>
                         <span>Total: ${t.total}</span>
                       </div>
@@ -394,7 +378,7 @@ const loadDestinationOptions = async (inputValue) => {
                   </div>
 
                   <p className="text-right text-indigo-700 font-semibold mt-2">
-                    Grand Total (All Travelers): ${r.grandTotal.toFixed(2)}
+                    Grand Total: ${r.grandTotal.toFixed(2)}
                   </p>
 
                   <Button
