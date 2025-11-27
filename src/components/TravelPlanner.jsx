@@ -1,91 +1,143 @@
 import React, { useState } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
-// ----- Utility -----
-const fmt = (n) =>
-  Number(n).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-  });
+/**
+ * Premium Trips Genie TravelPlanner (Polished UI)
+ * - Glass cards & refined spacing
+ * - Destination autocomplete (Teleport w/ fallback)
+ * - Pexels -> Unsplash image fallback
+ * - Nationality & Residency suggestions (creatable)
+ * - Per-destination breakdown + traveler breakdown
+ * - Sorted ascending by grand total
+ */
 
-// UI wrappers
-const Container = ({ children }) => (
-  <div className="p-6 max-w-5xl mx-auto">{children}</div>
+/* ---------------- utilities ---------------- */
+const formatCurrency = (n) =>
+  n == null || n === "" ? "-" : `$${Number(n).toLocaleString()}`;
+
+const extractCountry = (label = "") => {
+  const parts = String(label).split(",");
+  return parts.length > 1 ? parts[parts.length - 1].trim() : parts[0].trim();
+};
+
+/* ---------------- UI primitives (polished) ---------------- */
+const Page = ({ children }) => (
+  <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-10">
+    <div className="max-w-6xl mx-auto px-6">{children}</div>
+  </div>
 );
-const GlassCard = ({ children }) => (
-  <div className="bg-white/70 backdrop-blur-lg shadow-xl border border-gray-200 rounded-2xl p-6">
+
+const TopHeader = ({ title, subtitle }) => (
+  <header className="mb-8">
+    <div className="flex items-center justify-between">
+      <div>
+        <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+          ✈️ {title}
+        </h1>
+        {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
+      </div>
+      <div className="text-xs text-slate-500">MVP</div>
+    </div>
+  </header>
+);
+
+const GlassCard = ({ children, className = "" }) => (
+  <div
+    className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-6 shadow-lg ${className}`}
+  >
     {children}
   </div>
 );
-const Input = (props) => (
-  <input
-    {...props}
-    className={
-      "border rounded-lg px-3 py-2 w-full text-sm focus:ring-2 focus:ring-indigo-300"
-    }
-  />
-);
-const Button = ({ children, className = "", ...props }) => (
+
+const CTAButton = ({ children, className = "", ...props }) => (
   <button
     {...props}
-    className={`px-4 py-2 rounded-lg text-sm font-medium ${className}`}
+    className={`inline-flex items-center justify-center px-4 py-2 rounded-md font-semibold transition ${className}`}
   >
     {children}
   </button>
 );
 
-// --- Teleport city autocomplete ---
-const fallbackCities = [
+/* ---------------- fallback destinations ---------------- */
+const FALLBACK_CITIES = [
   "Paris, France",
   "Barcelona, Spain",
   "Lisbon, Portugal",
-  "London, UK",
   "Rome, Italy",
   "Tokyo, Japan",
+  "New York, USA",
   "Bangkok, Thailand",
-  "Dubai, UAE",
-  "Bali, Indonesia",
-  "Sydney, Australia",
-  "Toronto, Canada",
-  "Mexico City, Mexico",
+  "Istanbul, Turkey",
   "Singapore",
-  "Marrakesh, Morocco",
+  "Dubai, United Arab Emirates",
+  "Bali, Indonesia",
+  "Prague, Czech Republic",
+  "Cape Town, South Africa",
+  "Toronto, Canada",
 ];
 
-const loadDestinationOptions = async (inputValue) => {
-  if (!inputValue)
-    return fallbackCities.map((c) => ({ label: c, value: c }));
+/* ---------------- destination autocomplete (Teleport w/ timeout) ---------------- */
+const loadDestinationOptions = async (input = "") => {
+  if (!input || input.length < 2) {
+    return FALLBACK_CITIES.map((c) => ({ label: c, value: c }));
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1800);
 
   try {
     const res = await fetch(
       `https://api.teleport.org/api/cities/?search=${encodeURIComponent(
-        inputValue
-      )}&limit=10`
+        input
+      )}&limit=8`,
+      { signal: controller.signal }
     );
-
+    clearTimeout(timeout);
     if (!res.ok) throw new Error("Teleport error");
     const data = await res.json();
-
-    const arr =
+    const opts =
       data._embedded?.["city:search-results"]?.map((c) => ({
         label: c.matching_full_name,
         value: c.matching_full_name,
       })) || [];
-
-    if (arr.length > 0) return arr;
+    return opts.length
+      ? opts
+      : FALLBACK_CITIES.filter((c) =>
+          c.toLowerCase().includes(input.toLowerCase())
+        ).map((c) => ({ label: c, value: c }));
   } catch {
-    /* fallback */
+    clearTimeout(timeout);
+    return FALLBACK_CITIES.filter((c) =>
+      c.toLowerCase().includes(input.toLowerCase())
+    ).map((c) => ({ label: c, value: c }));
   }
-
-  return fallbackCities
-    .filter((c) =>
-      c.toLowerCase().includes(inputValue.toLowerCase())
-    )
-    .map((c) => ({ label: c, value: c }));
 };
 
-// Autocomplete for travelers
-const nationalityOptions = [
+/* ---------------- image fetch: Pexels then Unsplash fallback ---------------- */
+async function fetchImageForDestination(dest) {
+  const query = (dest || "").split(",")[0];
+  const PEXELS_KEY = process.env.NEXT_PUBLIC_PEXELS_KEY;
+  try {
+    if (PEXELS_KEY) {
+      const res = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(
+          query
+        )}&per_page=1`,
+        { headers: { Authorization: PEXELS_KEY } }
+      );
+      if (res.ok) {
+        const j = await res.json();
+        const photo = j.photos?.[0];
+        if (photo?.src?.medium) return photo.src.medium;
+      }
+    }
+  } catch (e) {
+    // fallback to unsplash source below
+  }
+  return `https://source.unsplash.com/900x600/?${encodeURIComponent(query)}`;
+}
+
+/* ---------------- nationality & residency options ---------------- */
+const NATIONALITY_LIST = [
   "India",
   "United States",
   "United Kingdom",
@@ -98,8 +150,11 @@ const nationalityOptions = [
   "China",
   "Brazil",
   "UAE",
+  "Spain",
+  "Italy",
 ];
-const residencyOptions = [
+
+const RESIDENCY_LIST = [
   "US Green Card",
   "EU PR",
   "Schengen Visa",
@@ -111,171 +166,131 @@ const residencyOptions = [
   "Japan Residence Card",
 ];
 
-const loadSimpleOptions = (list) => async (input) =>
-  list
-    .filter((x) =>
-      x.toLowerCase().includes((input || "").toLowerCase())
-    )
+const loadSimpleOptions = (list) => async (input) => {
+  const q = (input || "").toLowerCase();
+  return list
+    .filter((x) => x.toLowerCase().includes(q))
     .map((x) => ({ label: x, value: x }));
+};
 
-// Fetch unsplash image
-async function fetchImageForDestination(dest) {
-  try {
-    const query = encodeURIComponent(dest);
-    const res = await fetch(
-      `https://api.unsplash.com/search/photos?query=${query}&client_id=Q4uDqR_xxx_replace_yours`
-    );
-
-    const data = await res.json();
-    return (
-      data?.results?.[0]?.urls?.regular ||
-      "https://via.placeholder.com/800x500?text=Destination"
-    );
-  } catch {
-    return "https://via.placeholder.com/800x500?text=Destination";
-  }
+/* ---------------- flag helper (single definition) ---------------- */
+function flagUrl(country) {
+  if (!country) return "";
+  return `https://countryflagsapi.com/png/${encodeURIComponent(country)}`;
 }
 
+/* ---------------- main component ---------------- */
 export default function TravelPlanner() {
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     startDate: "",
     endDate: "",
     destinations: [],
-    travelers: [
-      {
-        name: "",
-        nationality: "",
-        residency: "",
-        age: "",
-      },
-    ],
+    travelers: [{ name: "", nationality: "", residency: "", age: "" }],
   });
 
-  const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState({});
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedIndex, setExpandedIndex] = useState(null);
 
+  /* traveler helpers (compact single-row) */
   const addTraveler = () =>
-    setFormData((p) => ({
+    setForm((p) => ({
       ...p,
-      travelers: [
-        ...p.travelers,
-        { name: "", nationality: "", residency: "", age: "" },
-      ],
+      travelers: [...p.travelers, { name: "", nationality: "", residency: "", age: "" }],
     }));
 
-  const updateTraveler = (i, field, value) =>
-    setFormData((p) => {
-      const arr = [...p.travelers];
-      arr[i][field] = value;
-      return { ...p, travelers: arr };
+  const updateTraveler = (i, key, val) =>
+    setForm((p) => {
+      const t = [...p.travelers];
+      t[i] = { ...t[i], [key]: val };
+      return { ...p, travelers: t };
     });
 
   const removeTraveler = (i) =>
-    setFormData((p) => ({
-      ...p,
-      travelers: p.travelers.filter((_, x) => x !== i),
-    }));
+    setForm((p) => ({ ...p, travelers: p.travelers.filter((_, idx) => idx !== i) }));
 
+  /* main search / assemble */
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (
-      !formData.startDate ||
-      !formData.endDate ||
-      formData.destinations.length === 0
-    ) {
-      alert("Please fill required fields");
+    e?.preventDefault();
+    if (!form.startDate || !form.endDate || !form.destinations.length) {
+      alert("Please select start date, end date and at least one destination.");
       return;
     }
-
     setLoading(true);
-    const destList = formData.destinations
-      .map((d) => d.value)
-      .slice(0, 5);
-
     try {
+      const destList = form.destinations.map((d) => d.value).slice(0, 5);
+
       const [costsRes, flightsRes, visasRes] = await Promise.all([
         fetch("/api/costs", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ destinations: destList }),
-        }).then((r) => r.json()),
-
+        }).then((r) => r.json()).catch(() => ({})),
         fetch("/api/flights", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            destinations: destList,
-            dates: {
-              start: formData.startDate,
-              end: formData.endDate,
-            },
-          }),
-        }).then((r) => r.json()),
-
+          body: JSON.stringify({ destinations: destList }),
+        }).then((r) => r.json()).catch(() => ([])),
         fetch("/api/visa", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            destinations: destList,
-            travelers: formData.travelers,
-          }),
-        }).then((r) => r.json()),
+          body: JSON.stringify({ destinations: destList, travelers: form.travelers }),
+        }).then((r) => r.json()).catch(() => ({ results: [] })),
       ]);
+
+      const days = Math.max(
+        1,
+        Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24))
+      );
 
       const built = await Promise.all(
         destList.map(async (dest, i) => {
-          const costObj = costsRes?.results?.[i] || {};
-          const flightObj = flightsRes?.[i] || {};
-          const visaObj =
-            visasRes?.results?.find((v) => v.destination === dest) || {};
+          const costObj = costsRes?.results?.[i] || (Array.isArray(costsRes) ? costsRes[i] : costsRes?.[dest]) || {};
+          const flightObj = Array.isArray(flightsRes) ? flightsRes[i] || {} : flightsRes?.[dest] || {};
+          const visaObj = (visasRes?.results || []).find((v) => v.destination === dest) || {};
 
-          const days = Math.max(
-            1,
-            Math.round(
-              (new Date(formData.endDate) -
-                new Date(formData.startDate)) /
-                (1000 * 60 * 60 * 24)
-            )
-          );
+          const avgDaily = costObj.avgDaily || costObj.avgDailyExpense || 120;
+          const breakdown = costObj.breakdown || {
+            lodging: Math.round(avgDaily * 0.45),
+            food: Math.round(avgDaily * 0.35),
+            transport: Math.round(avgDaily * 0.15),
+            misc: Math.round(avgDaily * 0.05),
+          };
 
-          const image = await fetchImageForDestination(dest);
+          const img = await fetchImageForDestination(dest);
 
-          const travelerBreakdown = formData.travelers.map((t, j) => {
-            const visaFee =
-              visaObj?.data?.[j]?.visaFee ||
-              visaObj?.visaFee ||
-              0;
+          const travelerBreakdown = form.travelers.map((t, ti) => {
+            let visaFee = 0;
+            if (Array.isArray(visaObj?.data) && visaObj.data[ti]) {
+              visaFee = Number(visaObj.data[ti].visa_fee_usd || visaObj.data[ti].visaFee || visaObj.data[ti].visa_fee || 0);
+            } else {
+              visaFee = Number(visaObj?.visa_fee_usd || visaObj?.visaFee || visaObj?.visa_fee || 0);
+            }
 
-            const flight =
-              flightObj?.flightCost ||
-              flightObj?.price ||
-              Math.floor(Math.random() * 300 + 250);
-
-            const daily = costObj?.avgDaily || 100;
-            const tripDaily = daily * days;
+            const flightCost = Number(flightObj?.flightCost || flightObj?.price || Math.floor(Math.random() * 450 + 250));
+            const tripDaily = Math.round(avgDaily * days);
+            const total = Math.round(flightCost + tripDaily + visaFee);
 
             return {
-              name: t.name || `Traveler ${j + 1}`,
+              name: t.name || `Traveler ${ti + 1}`,
               nationality: t.nationality,
               residency: t.residency,
-              flightCost: flight,
+              age: t.age,
+              flightCost,
               tripDaily,
               visaFee,
-              total: Math.round(flight + tripDaily + visaFee),
+              total,
             };
           });
 
-          const grandTotal = travelerBreakdown.reduce(
-            (acc, t) => acc + t.total,
-            0
-          );
+          const grandTotal = travelerBreakdown.reduce((s, t) => s + t.total, 0);
 
           return {
             destination: dest,
-            image,
-            avgDaily: costObj.avgDaily,
-            breakdown: costObj.breakdown,
+            country: extractCountry(dest),
+            image: img,
+            avgDaily,
+            breakdown,
             travelerBreakdown,
             grandTotal,
             days,
@@ -283,259 +298,200 @@ export default function TravelPlanner() {
         })
       );
 
-      // Sort results by total cost ascending
       built.sort((a, b) => a.grandTotal - b.grandTotal);
 
       setResults(built);
     } catch (err) {
-      console.error("Trip fetch failed:", err);
+      console.error("Search failed", err);
+      alert("Failed to fetch trip data — see console");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
+  /* ---------------- render ---------------- */
   return (
-    <Container>
-      <h1 className="text-3xl font-bold text-center mb-6">
-        ✈️ Trips Genie — Plan Smart, Travel Better
-      </h1>
+    <Page>
+      <TopHeader title="Trips Genie" subtitle="Plan Smart, Travel Better — compare up to 5 city-level destinations" />
 
-      {/* MAIN FORM */}
-      <GlassCard>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          {/* Dates */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <GlassCard className="mb-8">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm font-medium">Start Date</label>
-              <Input
-                type="date"
-                value={formData.startDate}
-                onChange={(e) =>
-                  setFormData((p) => ({
-                    ...p,
-                    startDate: e.target.value,
-                  }))
-                }
-                required
-              />
+              <label className="block text-xs text-slate-600">Start Date</label>
+              <input type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} className="mt-1 w-full p-2 border rounded-md" required />
             </div>
 
             <div>
-              <label className="text-sm font-medium">End Date</label>
-              <Input
-                type="date"
-                value={formData.endDate}
-                onChange={(e) =>
-                  setFormData((p) => ({
-                    ...p,
-                    endDate: e.target.value,
-                  }))
-                }
-                required
-              />
+              <label className="block text-xs text-slate-600">End Date</label>
+              <input type="date" value={form.endDate} onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))} className="mt-1 w-full p-2 border rounded-md" required />
+            </div>
+
+            <div>
+              <label className="block text-xs text-slate-600">Destinations (up to 5)</label>
+              <div className="mt-1">
+                <AsyncCreatableSelect
+                  isMulti
+                  cacheOptions
+                  defaultOptions
+                  loadOptions={loadDestinationOptions}
+                  value={form.destinations}
+                  onChange={(v) => setForm((p) => ({ ...p, destinations: v ? v.slice(0, 5) : [] }))}
+                  placeholder="Search city (e.g. Paris, France)"
+                  styles={{
+                    control: (base) => ({ ...base, minHeight: 48 }),
+                    valueContainer: (base) => ({ ...base, padding: "0 8px" }),
+                    input: (base) => ({ ...base, margin: 0, padding: 0 }),
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Destinations */}
+          {/* Travelers - compact single-row */}
           <div>
-            <label className="text-sm font-medium">
-              Destinations (up to 5)
-            </label>
-            <AsyncCreatableSelect
-              isMulti
-              cacheOptions
-              loadOptions={loadDestinationOptions}
-              value={formData.destinations}
-              onChange={(v) =>
-                setFormData((p) => ({
-                  ...p,
-                  destinations: v.slice(0, 5),
-                }))
-              }
-              placeholder="Select destinations…"
-            />
-          </div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-medium">Travelers</div>
+              <div className="text-xs text-slate-500">One row per traveler</div>
+            </div>
 
-          {/* TRAVELERS */}
-          <div>
-            <label className="font-semibold text-sm">Travelers</label>
-            <div className="space-y-3 mt-2">
-              {formData.travelers.map((t, i) => (
-                <div
-                  key={i}
-                  className="grid grid-cols-1 md:grid-cols-5 gap-3"
-                >
-                  <Input
-                    placeholder="Name"
-                    value={t.name}
-                    onChange={(e) =>
-                      updateTraveler(i, "name", e.target.value)
-                    }
-                  />
+            <div className="space-y-3">
+              {form.travelers.map((t, i) => (
+                <div key={i} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                  <input className="p-2 border rounded-md" placeholder="Name" value={t.name} onChange={(e) => updateTraveler(i, "name", e.target.value)} />
 
-                  <AsyncCreatableSelect
-                    cacheOptions
-                    defaultOptions
-                    loadOptions={loadSimpleOptions(nationalityOptions)}
-                    value={
-                      t.nationality
-                        ? { label: t.nationality, value: t.nationality }
-                        : null
-                    }
-                    onChange={(opt) =>
-                      updateTraveler(i, "nationality", opt?.value || "")
-                    }
-                    placeholder="Nationality"
-                  />
+                  <div>
+                    <AsyncCreatableSelect
+                      cacheOptions
+                      defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
+                      loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
+                      placeholder="Nationality"
+                      value={t.nationality ? { label: t.nationality, value: t.nationality } : null}
+                      onChange={(opt) => updateTraveler(i, "nationality", opt ? opt.value : "")}
+                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: "0 8px" }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
+                    />
+                  </div>
 
-                  <AsyncCreatableSelect
-                    cacheOptions
-                    defaultOptions
-                    loadOptions={loadSimpleOptions(residencyOptions)}
-                    value={
-                      t.residency
-                        ? { label: t.residency, value: t.residency }
-                        : null
-                    }
-                    onChange={(opt) =>
-                      updateTraveler(i, "residency", opt?.value || "")
-                    }
-                    placeholder="Residency / Visa"
-                  />
+                  <div>
+                    <AsyncCreatableSelect
+                      cacheOptions
+                      defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
+                      loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
+                      placeholder="Residency / Visa"
+                      value={t.residency ? { label: t.residency, value: t.residency } : null}
+                      onChange={(opt) => updateTraveler(i, "residency", opt ? opt.value : "")}
+                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: "0 8px" }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
+                    />
+                  </div>
 
-                  <Input
-                    type="number"
-                    placeholder="Age"
-                    value={t.age}
-                    onChange={(e) =>
-                      updateTraveler(i, "age", e.target.value)
-                    }
-                  />
+                  <input type="number" className="p-2 border rounded-md md:w-24" placeholder="Age" value={t.age} onChange={(e) => updateTraveler(i, "age", e.target.value)} />
 
-                  <Button
-                    type="button"
-                    onClick={() => removeTraveler(i)}
-                    className="bg-red-200 hover:bg-red-300"
-                  >
-                    Remove
-                  </Button>
+                  <button type="button" onClick={() => removeTraveler(i)} className="text-sm text-red-600">Remove</button>
                 </div>
               ))}
 
-              <Button
-                type="button"
-                onClick={addTraveler}
-                className="bg-indigo-100 hover:bg-indigo-200"
-              >
-                + Add Traveler
-              </Button>
+              <div>
+                <button type="button" onClick={addTraveler} className="px-3 py-1.5 rounded-md bg-slate-900 text-white text-sm">+ Add Traveler</button>
+              </div>
             </div>
           </div>
 
-          <div className="pt-2">
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white"
-            >
+          <div>
+            <CTAButton type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white" disabled={loading}>
               {loading ? "Analyzing..." : "Find Best Trips"}
-            </Button>
+            </CTAButton>
           </div>
         </form>
       </GlassCard>
 
-      {/* RESULTS */}
+      {/* Results */}
       {results.length > 0 && (
-        <div className="mt-10">
-          <h2 className="text-xl font-semibold mb-4 text-center">
-            Best Destination Options
-          </h2>
+        <div className="space-y-6">
+          <div className="text-sm text-slate-600">Results — sorted cheapest first</div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {results.map((r, idx) => (
               <GlassCard key={idx}>
-                <img
-                  src={r.image}
-                  alt={r.destination}
-                  className="w-full h-56 object-cover rounded-xl mb-3"
-                />
-
-                <h3 className="text-xl font-semibold text-gray-900 mb-1">
-                  {r.destination}
-                </h3>
-
-                <div className="text-gray-600 text-sm mb-2">
-                  {r.days} days trip
-                </div>
-
-                <div className="text-gray-700 text-sm">
-                  <div>Avg Daily Expense: {fmt(r.avgDaily)}</div>
-                </div>
-
-                {/* Traveler Breakdown */}
-                <div className="mt-3 border-t pt-3">
-                  <div className="flex justify-between">
-                    <span className="font-semibold text-gray-800">
-                      Traveler Breakdown
-                    </span>
-                    <button
-                      className="text-sm text-indigo-600"
-                      onClick={() =>
-                        setExpanded((s) => ({
-                          ...s,
-                          [idx]: !s?.[idx],
-                        }))
-                      }
-                    >
-                      {expanded?.[idx] ? "Hide details" : "Show details"}
-                    </button>
-                  </div>
-
-                  {expanded?.[idx] ? (
-                    <div className="mt-2 space-y-2">
-                      {r.travelerBreakdown.map((t, j) => (
-                        <div
-                          key={j}
-                          className="p-3 rounded border bg-gray-50 flex justify-between"
-                        >
-                          <div>
-                            <div className="font-medium">{t.name}</div>
-                            <div className="text-xs text-gray-500">
-                              {t.nationality} — {t.residency}
-                            </div>
-                          </div>
-
-                          <div className="text-sm text-right">
-                            <div>Flight: {fmt(t.flightCost)}</div>
-                            <div>
-                              Trip ({r.days} days): {fmt(t.tripDaily)}
-                            </div>
-                            <div>Visa: {fmt(t.visaFee)}</div>
-                            <div className="font-semibold mt-1">
-                              Total: {fmt(t.total)}
-                            </div>
-                          </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <img src={r.image} alt={r.destination} className="w-full h-44 object-cover rounded-md col-span-1" />
+                  <div className="col-span-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-xl font-semibold text-slate-900">{r.destination}</h3>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-slate-600">
+                          <img src={flagUrl(r.country)} alt={r.country} className="w-5 h-3 object-cover rounded-sm" />
+                          <span>{r.country}</span>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-1 text-sm text-gray-600">
-                      {r.travelerBreakdown
-                        .map((t) => `${t.name}: ${fmt(t.total)}`)
-                        .join(" • ")}
-                    </div>
-                  )}
-                </div>
+                      </div>
 
-                <div className="mt-4 text-right font-bold text-indigo-700">
-                  Grand Total: {fmt(r.grandTotal)}
+                      <div className="text-right">
+                        <div className="text-2xl font-extrabold text-indigo-700">{formatCurrency(r.grandTotal)}</div>
+                        <div className="text-xs text-slate-500">Total (all travelers)</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-700">
+                      <div>Avg daily: <span className="font-medium">{formatCurrency(r.avgDaily)}</span></div>
+                      <div>Days: <span className="font-medium">{r.days}</span></div>
+                    </div>
+
+                    {/* 2-column breakdown */}
+                    <div className="mt-3">
+                      <div className="text-sm font-medium text-slate-800 mb-2">Daily cost breakdown</div>
+                      <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
+                        <div className="flex justify-between"><span>Lodging</span><span>{formatCurrency(r.breakdown?.lodging)}</span></div>
+                        <div className="flex justify-between"><span>Food</span><span>{formatCurrency(r.breakdown?.food)}</span></div>
+                        <div className="flex justify-between"><span>Transport</span><span>{formatCurrency(r.breakdown?.transport)}</span></div>
+                        <div className="flex justify-between"><span>Misc</span><span>{formatCurrency(r.breakdown?.misc)}</span></div>
+                      </div>
+                    </div>
+
+                    {/* traveler breakdown expandable */}
+                    <div className="mt-4 border-t pt-3">
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-slate-800">Traveler Breakdown</div>
+                        <button type="button" onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)} className="text-sm text-indigo-600">
+                          {expandedIndex === idx ? "Hide details" : "Show details"}
+                        </button>
+                      </div>
+
+                      {expandedIndex === idx ? (
+                        <div className="mt-3 space-y-2">
+                          {r.travelerBreakdown.map((t, j) => (
+                            <div key={j} className="flex justify-between p-3 rounded-md bg-slate-50 border">
+                              <div>
+                                <div className="font-medium">{t.name}</div>
+                                <div className="text-xs text-slate-500">{t.nationality} — {t.residency}</div>
+                              </div>
+                              <div className="text-right text-sm">
+                                <div>Flight: {formatCurrency(t.flightCost)}</div>
+                                <div>Trip: {formatCurrency(t.tripDaily)}</div>
+                                <div>Visa: {formatCurrency(t.visaFee)}</div>
+                                <div className="font-semibold mt-1">{formatCurrency(t.total)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-slate-600">
+                          {r.travelerBreakdown.map((t) => `${t.name}: ${formatCurrency(t.total)}`).join(" • ")}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex gap-2 justify-end">
+                      <a href={`https://www.google.com/travel/flights?q=${encodeURIComponent(r.destination)}`} target="_blank" rel="noreferrer">
+                        <CTAButton className="bg-green-600 text-white">Book Flight</CTAButton>
+                      </a>
+                      <CTAButton onClick={() => alert("Download report coming soon")} className="border">Download</CTAButton>
+                    </div>
+                  </div>
                 </div>
               </GlassCard>
             ))}
           </div>
         </div>
       )}
-    </Container>
+    </Page>
   );
 }
-
