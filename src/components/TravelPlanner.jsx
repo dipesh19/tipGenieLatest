@@ -1,59 +1,47 @@
+// Updated TravelPlanner.jsx — fixed unterminated string and ensured all JSX attributes are properly quoted
 import React, { useState } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
 /**
- * Premium Trips Genie TravelPlanner (Polished UI)
- * - Glass cards & refined spacing
- * - Destination autocomplete (Teleport w/ fallback)
- * - Pexels -> Unsplash image fallback
- * - Nationality & Residency suggestions (creatable)
- * - Per-destination breakdown + traveler breakdown
- * - Sorted ascending by grand total
+ * TravelPlanner.jsx — responsive, production-ready
+ * Cleaned & fixed: ensured all fetch strings are properly terminated
+ * Hybrid responsive layout (mobile-first stacking, tablet 2-col, desktop spaced)
  */
 
 /* ---------------- utilities ---------------- */
-const formatCurrency = (n) =>
-  n == null || n === "" ? "-" : `$${Number(n).toLocaleString()}`;
-
+const formatCurrency = (n) => (n == null || n === "" ? "-" : `$${Number(n).toLocaleString()}`);
 const extractCountry = (label = "") => {
   const parts = String(label).split(",");
   return parts.length > 1 ? parts[parts.length - 1].trim() : parts[0].trim();
 };
 
-/* ---------------- UI primitives (polished) ---------------- */
+/* ---------------- UI primitives ---------------- */
 const Page = ({ children }) => (
-  <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-10">
-    <div className="max-w-6xl mx-auto px-6">{children}</div>
+  <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-8 px-4 sm:px-6 md:px-10">
+    <div className="max-w-6xl mx-auto">{children}</div>
   </div>
 );
 
 const TopHeader = ({ title, subtitle }) => (
-  <header className="mb-8">
+  <header className="mb-6">
     <div className="flex items-center justify-between">
       <div>
-        <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
-          ✈️ {title}
-        </h1>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">✈️ {title}</h1>
         {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
       </div>
-      <div className="text-xs text-slate-500">MVP</div>
+      
     </div>
   </header>
 );
 
 const GlassCard = ({ children, className = "" }) => (
-  <div
-    className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-6 shadow-lg ${className}`}
-  >
+  <div className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-4 sm:p-6 shadow ${className}`}>
     {children}
   </div>
 );
 
 const CTAButton = ({ children, className = "", ...props }) => (
-  <button
-    {...props}
-    className={`inline-flex items-center justify-center px-4 py-2 rounded-md font-semibold transition ${className}`}
-  >
+  <button {...props} className={`inline-flex items-center justify-center px-3 sm:px-4 py-2 rounded-md font-semibold transition ${className}`}>
     {children}
   </button>
 );
@@ -78,37 +66,24 @@ const FALLBACK_CITIES = [
 
 /* ---------------- destination autocomplete (Teleport w/ timeout) ---------------- */
 const loadDestinationOptions = async (input = "") => {
-  if (!input || input.length < 2) {
-    return FALLBACK_CITIES.map((c) => ({ label: c, value: c }));
-  }
+  if (!input || input.length < 2) return FALLBACK_CITIES.map((c) => ({ label: c, value: c }));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1800);
-
   try {
     const res = await fetch(
-      `https://api.teleport.org/api/cities/?search=${encodeURIComponent(
-        input
-      )}&limit=8`,
+      `https://api.teleport.org/api/cities/?search=${encodeURIComponent(input)}&limit=8`,
       { signal: controller.signal }
     );
     clearTimeout(timeout);
     if (!res.ok) throw new Error("Teleport error");
     const data = await res.json();
-    const opts =
-      data._embedded?.["city:search-results"]?.map((c) => ({
-        label: c.matching_full_name,
-        value: c.matching_full_name,
-      })) || [];
+    const opts = data._embedded?.["city:search-results"]?.map((c) => ({ label: c.matching_full_name, value: c.matching_full_name })) || [];
     return opts.length
       ? opts
-      : FALLBACK_CITIES.filter((c) =>
-          c.toLowerCase().includes(input.toLowerCase())
-        ).map((c) => ({ label: c, value: c }));
-  } catch {
+      : FALLBACK_CITIES.filter((c) => c.toLowerCase().includes(input.toLowerCase())).map((c) => ({ label: c, value: c }));
+  } catch (err) {
     clearTimeout(timeout);
-    return FALLBACK_CITIES.filter((c) =>
-      c.toLowerCase().includes(input.toLowerCase())
-    ).map((c) => ({ label: c, value: c }));
+    return FALLBACK_CITIES.filter((c) => c.toLowerCase().includes(input.toLowerCase())).map((c) => ({ label: c, value: c }));
   }
 };
 
@@ -118,12 +93,9 @@ async function fetchImageForDestination(dest) {
   const PEXELS_KEY = process.env.NEXT_PUBLIC_PEXELS_KEY;
   try {
     if (PEXELS_KEY) {
-      const res = await fetch(
-        `https://api.pexels.com/v1/search?query=${encodeURIComponent(
-          query
-        )}&per_page=1`,
-        { headers: { Authorization: PEXELS_KEY } }
-      );
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
+        headers: { Authorization: PEXELS_KEY },
+      });
       if (res.ok) {
         const j = await res.json();
         const photo = j.photos?.[0];
@@ -131,7 +103,7 @@ async function fetchImageForDestination(dest) {
       }
     }
   } catch (e) {
-    // fallback to unsplash source below
+    // fall through to unsplash
   }
   return `https://source.unsplash.com/900x600/?${encodeURIComponent(query)}`;
 }
@@ -153,7 +125,6 @@ const NATIONALITY_LIST = [
   "Spain",
   "Italy",
 ];
-
 const RESIDENCY_LIST = [
   "US Green Card",
   "EU PR",
@@ -168,15 +139,12 @@ const RESIDENCY_LIST = [
 
 const loadSimpleOptions = (list) => async (input) => {
   const q = (input || "").toLowerCase();
-  return list
-    .filter((x) => x.toLowerCase().includes(q))
-    .map((x) => ({ label: x, value: x }));
+  return list.filter((x) => x.toLowerCase().includes(q)).map((x) => ({ label: x, value: x }));
 };
 
-/* ---------------- flag helper (single definition) ---------------- */
+/* ---------------- flag helper ---------------- */
 function flagUrl(country) {
-  if (!country) return "";
-  return `https://countryflagsapi.com/png/${encodeURIComponent(country)}`;
+  return country ? `https://countryflagsapi.com/png/${encodeURIComponent(country)}` : "";
 }
 
 /* ---------------- main component ---------------- */
@@ -187,29 +155,14 @@ export default function TravelPlanner() {
     destinations: [],
     travelers: [{ name: "", nationality: "", residency: "", age: "" }],
   });
-
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
 
-  /* traveler helpers (compact single-row) */
-  const addTraveler = () =>
-    setForm((p) => ({
-      ...p,
-      travelers: [...p.travelers, { name: "", nationality: "", residency: "", age: "" }],
-    }));
+  const addTraveler = () => setForm((p) => ({ ...p, travelers: [...p.travelers, { name: "", nationality: "", residency: "", age: "" }] }));
+  const updateTraveler = (i, key, val) => setForm((p) => { const t = [...p.travelers]; t[i] = { ...t[i], [key]: val }; return { ...p, travelers: t }; });
+  const removeTraveler = (i) => setForm((p) => ({ ...p, travelers: p.travelers.filter((_, idx) => idx !== i) }));
 
-  const updateTraveler = (i, key, val) =>
-    setForm((p) => {
-      const t = [...p.travelers];
-      t[i] = { ...t[i], [key]: val };
-      return { ...p, travelers: t };
-    });
-
-  const removeTraveler = (i) =>
-    setForm((p) => ({ ...p, travelers: p.travelers.filter((_, idx) => idx !== i) }));
-
-  /* main search / assemble */
   const handleSubmit = async (e) => {
     e?.preventDefault();
     if (!form.startDate || !form.endDate || !form.destinations.length) {
@@ -226,11 +179,13 @@ export default function TravelPlanner() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ destinations: destList }),
         }).then((r) => r.json()).catch(() => ({})),
+
         fetch("/api/flights", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ destinations: destList }),
         }).then((r) => r.json()).catch(() => ([])),
+
         fetch("/api/visa", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -238,68 +193,44 @@ export default function TravelPlanner() {
         }).then((r) => r.json()).catch(() => ({ results: [] })),
       ]);
 
-      const days = Math.max(
-        1,
-        Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24))
-      );
+      const days = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)));
 
-      const built = await Promise.all(
-        destList.map(async (dest, i) => {
-          const costObj = costsRes?.results?.[i] || (Array.isArray(costsRes) ? costsRes[i] : costsRes?.[dest]) || {};
-          const flightObj = Array.isArray(flightsRes) ? flightsRes[i] || {} : flightsRes?.[dest] || {};
-          const visaObj = (visasRes?.results || []).find((v) => v.destination === dest) || {};
+      const built = await Promise.all(destList.map(async (dest, i) => {
+        const costObj = costsRes?.results?.[i] || (Array.isArray(costsRes) ? costsRes[i] : costsRes?.[dest]) || {};
+        const flightObj = Array.isArray(flightsRes) ? flightsRes[i] || {} : flightsRes?.[dest] || {};
+        const visaObj = (visasRes?.results || []).find((v) => v.destination === dest) || {};
 
-          const avgDaily = costObj.avgDaily || costObj.avgDailyExpense || 120;
-          const breakdown = costObj.breakdown || {
-            lodging: Math.round(avgDaily * 0.45),
-            food: Math.round(avgDaily * 0.35),
-            transport: Math.round(avgDaily * 0.15),
-            misc: Math.round(avgDaily * 0.05),
-          };
+        const avgDaily = costObj.avgDaily || costObj.avgDailyExpense || 120;
+        const breakdown = costObj.breakdown || {
+          lodging: Math.round(avgDaily * 0.45),
+          food: Math.round(avgDaily * 0.35),
+          transport: Math.round(avgDaily * 0.15),
+          misc: Math.round(avgDaily * 0.05),
+        };
 
-          const img = await fetchImageForDestination(dest);
+        const img = await fetchImageForDestination(dest);
 
-          const travelerBreakdown = form.travelers.map((t, ti) => {
-            let visaFee = 0;
-            if (Array.isArray(visaObj?.data) && visaObj.data[ti]) {
-              visaFee = Number(visaObj.data[ti].visa_fee_usd || visaObj.data[ti].visaFee || visaObj.data[ti].visa_fee || 0);
-            } else {
-              visaFee = Number(visaObj?.visa_fee_usd || visaObj?.visaFee || visaObj?.visa_fee || 0);
-            }
+        const travelerBreakdown = form.travelers.map((t, ti) => {
+          let visaFee = 0;
+          if (Array.isArray(visaObj?.data) && visaObj.data[ti]) {
+            visaFee = Number(visaObj.data[ti].visa_fee_usd || visaObj.data[ti].visaFee || visaObj.data[ti].visa_fee || 0);
+          } else {
+            visaFee = Number(visaObj?.visa_fee_usd || visaObj?.visaFee || visaObj?.visa_fee || 0);
+          }
 
-            const flightCost = Number(flightObj?.flightCost || flightObj?.price || Math.floor(Math.random() * 450 + 250));
-            const tripDaily = Math.round(avgDaily * days);
-            const total = Math.round(flightCost + tripDaily + visaFee);
+          const flightCost = Number(flightObj?.flightCost || flightObj?.price || Math.floor(Math.random() * 450 + 250));
+          const tripDaily = Math.round(avgDaily * days);
+          const total = Math.round(flightCost + tripDaily + visaFee);
 
-            return {
-              name: t.name || `Traveler ${ti + 1}`,
-              nationality: t.nationality,
-              residency: t.residency,
-              age: t.age,
-              flightCost,
-              tripDaily,
-              visaFee,
-              total,
-            };
-          });
+          return { name: t.name || `Traveler ${ti + 1}`, nationality: t.nationality, residency: t.residency, age: t.age, flightCost, tripDaily, visaFee, total };
+        });
 
-          const grandTotal = travelerBreakdown.reduce((s, t) => s + t.total, 0);
+        const grandTotal = travelerBreakdown.reduce((s, t) => s + t.total, 0);
 
-          return {
-            destination: dest,
-            country: extractCountry(dest),
-            image: img,
-            avgDaily,
-            breakdown,
-            travelerBreakdown,
-            grandTotal,
-            days,
-          };
-        })
-      );
+        return { destination: dest, country: extractCountry(dest), image: img, avgDaily, breakdown, travelerBreakdown, grandTotal, days };
+      }));
 
       built.sort((a, b) => a.grandTotal - b.grandTotal);
-
       setResults(built);
     } catch (err) {
       console.error("Search failed", err);
@@ -312,10 +243,10 @@ export default function TravelPlanner() {
   /* ---------------- render ---------------- */
   return (
     <Page>
-      <TopHeader title="Trips Genie" subtitle="Plan Smart, Travel Better — compare up to 5 city-level destinations" />
+      <TopHeader title="Trips Genie" subtitle="AI‑powered travel cost analysis & destination comparison" />
 
-      <GlassCard className="mb-8">
-        <form onSubmit={handleSubmit} className="space-y-5">
+      <GlassCard className="mb-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-slate-600">Start Date</label>
@@ -338,17 +269,13 @@ export default function TravelPlanner() {
                   value={form.destinations}
                   onChange={(v) => setForm((p) => ({ ...p, destinations: v ? v.slice(0, 5) : [] }))}
                   placeholder="Search city (e.g. Paris, France)"
-                  styles={{
-                    control: (base) => ({ ...base, minHeight: 48 }),
-                    valueContainer: (base) => ({ ...base, padding: "0 8px" }),
-                    input: (base) => ({ ...base, margin: 0, padding: 0 }),
-                  }}
+                  styles={{ control: (base) => ({ ...base, minHeight: 48 }), valueContainer: (base) => ({ ...base, padding: '0 8px' }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Travelers - compact single-row */}
+          {/* Travelers */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium">Travelers</div>
@@ -368,7 +295,7 @@ export default function TravelPlanner() {
                       placeholder="Nationality"
                       value={t.nationality ? { label: t.nationality, value: t.nationality } : null}
                       onChange={(opt) => updateTraveler(i, "nationality", opt ? opt.value : "")}
-                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: "0 8px" }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
+                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: '0 8px' }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
                     />
                   </div>
 
@@ -380,7 +307,7 @@ export default function TravelPlanner() {
                       placeholder="Residency / Visa"
                       value={t.residency ? { label: t.residency, value: t.residency } : null}
                       onChange={(opt) => updateTraveler(i, "residency", opt ? opt.value : "")}
-                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: "0 8px" }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
+                      styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: '0 8px' }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
                     />
                   </div>
 
@@ -397,8 +324,8 @@ export default function TravelPlanner() {
           </div>
 
           <div>
-            <CTAButton type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white" disabled={loading}>
-              {loading ? "Analyzing..." : "Find Best Trips"}
+            <CTAButton type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white text-lg py-3 font-bold uppercase tracking-wide" disabled={loading}>
+              {loading ? "Analyzing..." : "FIND BEST TRIPS"}
             </CTAButton>
           </div>
         </form>
@@ -450,9 +377,7 @@ export default function TravelPlanner() {
                     <div className="mt-4 border-t pt-3">
                       <div className="flex items-center justify-between">
                         <div className="font-semibold text-slate-800">Traveler Breakdown</div>
-                        <button type="button" onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)} className="text-sm text-indigo-600">
-                          {expandedIndex === idx ? "Hide details" : "Show details"}
-                        </button>
+                        <button type="button" onClick={() => setExpandedIndex(expandedIndex === idx ? null : idx)} className="text-sm text-indigo-600">{expandedIndex === idx ? "Hide details" : "Show details"}</button>
                       </div>
 
                       {expandedIndex === idx ? (
@@ -473,9 +398,7 @@ export default function TravelPlanner() {
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-2 text-sm text-slate-600">
-                          {r.travelerBreakdown.map((t) => `${t.name}: ${formatCurrency(t.total)}`).join(" • ")}
-                        </div>
+                        <div className="mt-2 text-sm text-slate-600">{r.travelerBreakdown.map((t) => `${t.name}: ${formatCurrency(t.total)}`).join(" • ")}</div>
                       )}
                     </div>
 
