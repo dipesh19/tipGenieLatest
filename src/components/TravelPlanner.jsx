@@ -1,11 +1,11 @@
-// Updated TravelPlanner.jsx — fixed unterminated string and ensured all JSX attributes are properly quoted
 import React, { useState } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
 /**
- * TravelPlanner.jsx — responsive, production-ready
- * Cleaned & fixed: ensured all fetch strings are properly terminated
- * Hybrid responsive layout (mobile-first stacking, tablet 2-col, desktop spaced)
+ * TravelPlanner.jsx — stable production-ready UI (JSX fixed)
+ * - Multi-select nationality & residency
+ * - Tier-based visa exemptions
+ * - Robust, fully-closed JSX
  */
 
 /* ---------------- utilities ---------------- */
@@ -29,24 +29,21 @@ const TopHeader = ({ title, subtitle }) => (
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">✈️ {title}</h1>
         {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
       </div>
-      
     </div>
   </header>
 );
 
 const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-4 sm:p-6 shadow ${className}`}>
-    {children}
-  </div>
+  <div className={`bg-white/80 backdrop-blur-sm border border-slate-100 rounded-2xl p-4 sm:p-6 shadow ${className}`}>{children}</div>
 );
 
-const CTAButton = ({ children, className = "", ...props }) => (
-  <button {...props} className={`inline-flex items-center justify-center px-3 sm:px-4 py-2 rounded-md font-semibold transition ${className}`}>
+const CTAButton = ({ children, className = "", style = {}, ...props }) => (
+  <button {...props} style={style} className={`inline-flex items-center justify-center px-3 sm:px-4 py-2 rounded-md font-semibold transition ${className}`}>
     {children}
   </button>
 );
 
-/* ---------------- fallback destinations ---------------- */
+/* ---------------- data ---------------- */
 const FALLBACK_CITIES = [
   "Paris, France",
   "Barcelona, Spain",
@@ -64,38 +61,36 @@ const FALLBACK_CITIES = [
   "Toronto, Canada",
 ];
 
-/* ---------------- destination autocomplete (Teleport w/ timeout) ---------------- */
+const NATIONALITY_LIST = ["India","United States","United Kingdom","Canada","Australia","Germany","France","Japan","Singapore","China","Brazil","UAE","Spain","Italy"];
+const RESIDENCY_LIST = ["US Green Card","EU PR","Schengen Visa","UK Settlement Visa","Canadian PR","Australian PR","GCC Resident Visa","Singapore PR","Japan Residence Card"];
+
+const ASIA_VISA_FREE = ["japan","singapore","south korea","malaysia","hong kong","thailand","indonesia","philippines","vietnam"];
+const EUROPE_VISA_FREE = ["france","germany","italy","spain","portugal","netherlands","belgium","sweden","norway","finland","switzerland","austria","greece","denmark","iceland","czech republic","poland","hungary","luxembourg","malta"];
+
+/* ---------------- helpers ---------------- */
 const loadDestinationOptions = async (input = "") => {
   if (!input || input.length < 2) return FALLBACK_CITIES.map((c) => ({ label: c, value: c }));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1800);
   try {
-    const res = await fetch(
-      `https://api.teleport.org/api/cities/?search=${encodeURIComponent(input)}&limit=8`,
-      { signal: controller.signal }
-    );
+    const res = await fetch(`https://api.teleport.org/api/cities/?search=${encodeURIComponent(input)}&limit=8`, { signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) throw new Error("Teleport error");
     const data = await res.json();
     const opts = data._embedded?.["city:search-results"]?.map((c) => ({ label: c.matching_full_name, value: c.matching_full_name })) || [];
-    return opts.length
-      ? opts
-      : FALLBACK_CITIES.filter((c) => c.toLowerCase().includes(input.toLowerCase())).map((c) => ({ label: c, value: c }));
+    return opts.length ? opts : FALLBACK_CITIES.filter((c) => c.toLowerCase().includes(input.toLowerCase())).map((c) => ({ label: c, value: c }));
   } catch (err) {
     clearTimeout(timeout);
     return FALLBACK_CITIES.filter((c) => c.toLowerCase().includes(input.toLowerCase())).map((c) => ({ label: c, value: c }));
   }
 };
 
-/* ---------------- image fetch: Pexels then Unsplash fallback ---------------- */
 async function fetchImageForDestination(dest) {
   const query = (dest || "").split(",")[0];
   const PEXELS_KEY = process.env.NEXT_PUBLIC_PEXELS_KEY;
   try {
     if (PEXELS_KEY) {
-      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
-        headers: { Authorization: PEXELS_KEY },
-      });
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, { headers: { Authorization: PEXELS_KEY } });
       if (res.ok) {
         const j = await res.json();
         const photo = j.photos?.[0];
@@ -103,94 +98,50 @@ async function fetchImageForDestination(dest) {
       }
     }
   } catch (e) {
-    // fall through to unsplash
+    // fallback to unsplash
   }
   return `https://source.unsplash.com/900x600/?${encodeURIComponent(query)}`;
 }
 
-/* ---------------- nationality & residency options ---------------- */
-const NATIONALITY_LIST = [
-  "India",
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Australia",
-  "Germany",
-  "France",
-  "Japan",
-  "Singapore",
-  "China",
-  "Brazil",
-  "UAE",
-  "Spain",
-  "Italy",
-];
-const RESIDENCY_LIST = [
-  "US Green Card",
-  "EU PR",
-  "Schengen Visa",
-  "UK Settlement Visa",
-  "Canadian PR",
-  "Australian PR",
-  "GCC Resident Visa",
-  "Singapore PR",
-  "Japan Residence Card",
-];
-
-const loadSimpleOptions = (list) => async (input) => {
-  const q = (input || "").toLowerCase();
-  return list.filter((x) => x.toLowerCase().includes(q)).map((x) => ({ label: x, value: x }));
-};
-
-/* ---------------- flag helper ---------------- */
-function flagUrl(country) {
-  return country ? `https://countryflagsapi.com/png/${encodeURIComponent(country)}` : "";
-}
+function flagUrl(country) { return country ? `https://countryflagsapi.com/png/${encodeURIComponent(country)}` : ""; }
+const loadSimpleOptions = (list) => async (input) => { const q = (input || "").toLowerCase(); return list.filter((x) => x.toLowerCase().includes(q)).map((x) => ({ label: x, value: x })); };
 
 /* ---------------- main component ---------------- */
 export default function TravelPlanner() {
-  const [form, setForm] = useState({
-    startDate: "",
-    endDate: "",
-    destinations: [],
-    travelers: [{ name: "", nationality: "", residency: "", age: "" }],
-  });
+  const [form, setForm] = useState({ startDate: "", endDate: "", destinations: [], travelers: [{ name: "", nationality: [], residency: [], age: "" }] });
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
 
-  const addTraveler = () => setForm((p) => ({ ...p, travelers: [...p.travelers, { name: "", nationality: "", residency: "", age: "" }] }));
+  const addTraveler = () => setForm((p) => ({ ...p, travelers: [...p.travelers, { name: "", nationality: [], residency: [], age: "" }] }));
   const updateTraveler = (i, key, val) => setForm((p) => { const t = [...p.travelers]; t[i] = { ...t[i], [key]: val }; return { ...p, travelers: t }; });
   const removeTraveler = (i) => setForm((p) => ({ ...p, travelers: p.travelers.filter((_, idx) => idx !== i) }));
 
+  const validateForm = () => {
+    if (!form.startDate || !form.endDate) return "Please select both start and end dates.";
+    if (new Date(form.endDate) < new Date(form.startDate)) return "End date cannot be before start date.";
+    if (!form.destinations.length) return "Please select at least one destination.";
+    if (form.travelers.length === 0) return "Add at least one traveler.";
+    for (const t of form.travelers) {
+      if (!t.name) return "Each traveler must have a name.";
+      if (!t.nationality || (Array.isArray(t.nationality) && t.nationality.length === 0)) return "Each traveler must have a nationality.";
+      if (!t.residency || (Array.isArray(t.residency) && t.residency.length === 0)) return "Each traveler must have a residency/visa type.";
+      if (!t.age || Number(t.age) <= 0) return "A valid age is required for all travelers.";
+    }
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (!form.startDate || !form.endDate || !form.destinations.length) {
-      alert("Please select start date, end date and at least one destination.");
-      return;
-    }
+    const validationError = validateForm();
+    if (validationError) { alert(validationError); return; }
     setLoading(true);
     try {
       const destList = form.destinations.map((d) => d.value).slice(0, 5);
-
       const [costsRes, flightsRes, visasRes] = await Promise.all([
-        fetch("/api/costs", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ destinations: destList }),
-        }).then((r) => r.json()).catch(() => ({})),
-
-        fetch("/api/flights", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ destinations: destList }),
-        }).then((r) => r.json()).catch(() => ([])),
-
-        fetch("/api/visa", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ destinations: destList, travelers: form.travelers }),
-        }).then((r) => r.json()).catch(() => ({ results: [] })),
+        fetch("/api/costs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ destinations: destList }) }).then((r) => r.json()).catch(() => ({})),
+        fetch("/api/flights", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ destinations: destList }) }).then((r) => r.json()).catch(() => ([])),
+        fetch("/api/visa", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ destinations: destList, travelers: form.travelers }) }).then((r) => r.json()).catch(() => ({ results: [] })),
       ]);
 
       const days = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)));
@@ -199,19 +150,30 @@ export default function TravelPlanner() {
         const costObj = costsRes?.results?.[i] || (Array.isArray(costsRes) ? costsRes[i] : costsRes?.[dest]) || {};
         const flightObj = Array.isArray(flightsRes) ? flightsRes[i] || {} : flightsRes?.[dest] || {};
         const visaObj = (visasRes?.results || []).find((v) => v.destination === dest) || {};
-
         const avgDaily = costObj.avgDaily || costObj.avgDailyExpense || 120;
-        const breakdown = costObj.breakdown || {
-          lodging: Math.round(avgDaily * 0.45),
-          food: Math.round(avgDaily * 0.35),
-          transport: Math.round(avgDaily * 0.15),
-          misc: Math.round(avgDaily * 0.05),
-        };
-
+        const breakdown = costObj.breakdown || { lodging: Math.round(avgDaily * 0.45), food: Math.round(avgDaily * 0.35), transport: Math.round(avgDaily * 0.15), misc: Math.round(avgDaily * 0.05) };
         const img = await fetchImageForDestination(dest);
 
         const travelerBreakdown = form.travelers.map((t, ti) => {
           let visaFee = 0;
+          const destCountry = extractCountry(dest).toLowerCase();
+          const nationalities = Array.isArray(t.nationality) ? t.nationality.map((n) => String(n).toLowerCase()) : [(t.nationality || "").toLowerCase()];
+          const residencies = Array.isArray(t.residency) ? t.residency.map((r) => String(r).toLowerCase()) : [(t.residency || "").toLowerCase()];
+
+          // Tiered exemptions
+          if (nationalities.includes(destCountry)) visaFee = 0;
+          const US_TERRITORIES = ["united states","usa","hawaii","puerto rico","guam","us virgin islands"];
+          if (US_TERRITORIES.includes(destCountry) && (nationalities.includes("united states") || residencies.some((r) => r.includes("green card")))) visaFee = 0;
+          const SCHENGEN = ["france","germany","italy","spain","portugal","netherlands","belgium","sweden","norway","finland","switzerland","austria","greece","denmark","iceland","czech republic","poland","hungary","luxembourg","malta"];
+          if (SCHENGEN.includes(destCountry) && (residencies.some((r) => r.includes("eu pr")) || residencies.some((r) => r.includes("schengen")) || nationalities.includes("united kingdom"))) visaFee = 0;
+          const GCC = ["uae","qatar","bahrain","oman","kuwait","saudi arabia"];
+          if (GCC.includes(destCountry) && residencies.some((r) => r.includes("gcc resident"))) visaFee = 0;
+          const EAST_ASIA = ["japan","singapore","south korea","malaysia","hong kong","thailand"];
+          if (EAST_ASIA.includes(destCountry) && (residencies.some((r) => r.includes("japan residence")) || residencies.some((r) => r.includes("singapore pr")) || nationalities.some((n) => EAST_ASIA.includes(n)))) visaFee = 0;
+          if (ASIA_VISA_FREE.includes(destCountry) && nationalities.some((n) => ASIA_VISA_FREE.includes(n))) visaFee = 0;
+          if (EUROPE_VISA_FREE.includes(destCountry) && nationalities.some((n) => EUROPE_VISA_FREE.includes(n))) visaFee = 0;
+
+          // If API provides specific visa fees use those (overrides above unless exemptions set)
           if (Array.isArray(visaObj?.data) && visaObj.data[ti]) {
             visaFee = Number(visaObj.data[ti].visa_fee_usd || visaObj.data[ti].visaFee || visaObj.data[ti].visa_fee || 0);
           } else {
@@ -226,7 +188,6 @@ export default function TravelPlanner() {
         });
 
         const grandTotal = travelerBreakdown.reduce((s, t) => s + t.total, 0);
-
         return { destination: dest, country: extractCountry(dest), image: img, avgDaily, breakdown, travelerBreakdown, grandTotal, days };
       }));
 
@@ -235,12 +196,28 @@ export default function TravelPlanner() {
     } catch (err) {
       console.error("Search failed", err);
       alert("Failed to fetch trip data — see console");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  /* ---------------- render ---------------- */
+  const aiRecommendations = () => {
+    if (results.length < 2) return [];
+    const sorted = [...results].sort((a, b) => a.grandTotal - b.grandTotal);
+    const best = sorted[0];
+    const recs = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const dest = sorted[i];
+      let visaDiff = 0;
+      for (let ti = 0; ti < dest.travelerBreakdown.length; ti++) {
+        const t = dest.travelerBreakdown[ti];
+        const b = best.travelerBreakdown[ti] || {};
+        visaDiff += (t.visaFee || 0) - (b.visaFee || 0);
+      }
+      const totalDiff = dest.grandTotal - best.grandTotal;
+      recs.push({ from: dest.destination, to: best.destination, visaDiff, totalDiff });
+    }
+    return recs;
+  };
+
   return (
     <Page>
       <TopHeader title="Trips Genie" subtitle="AI‑powered travel cost analysis & destination comparison" />
@@ -275,7 +252,6 @@ export default function TravelPlanner() {
             </div>
           </div>
 
-          {/* Travelers */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium">Travelers</div>
@@ -289,24 +265,26 @@ export default function TravelPlanner() {
 
                   <div>
                     <AsyncCreatableSelect
+                      isMulti
                       cacheOptions
                       defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
                       loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-                      placeholder="Nationality"
-                      value={t.nationality ? { label: t.nationality, value: t.nationality } : null}
-                      onChange={(opt) => updateTraveler(i, "nationality", opt ? opt.value : "")}
+                      placeholder="Nationality (multiple)"
+                      value={Array.isArray(t.nationality) ? t.nationality.map((n) => ({ label: n, value: n })) : []}
+                      onChange={(opts) => updateTraveler(i, "nationality", opts ? opts.map((o) => o.value) : [])}
                       styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: '0 8px' }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
                     />
                   </div>
 
                   <div>
                     <AsyncCreatableSelect
+                      isMulti
                       cacheOptions
                       defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
                       loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-                      placeholder="Residency / Visa"
-                      value={t.residency ? { label: t.residency, value: t.residency } : null}
-                      onChange={(opt) => updateTraveler(i, "residency", opt ? opt.value : "")}
+                      placeholder="Residency / Visa (multiple)"
+                      value={Array.isArray(t.residency) ? t.residency.map((r) => ({ label: r, value: r })) : []}
+                      onChange={(opts) => updateTraveler(i, "residency", opts ? opts.map((o) => o.value) : [])}
                       styles={{ control: (base) => ({ ...base, minHeight: 44 }), valueContainer: (base) => ({ ...base, padding: '0 8px' }), input: (base) => ({ ...base, margin: 0, padding: 0 }) }}
                     />
                   </div>
@@ -324,18 +302,35 @@ export default function TravelPlanner() {
           </div>
 
           <div>
-            <CTAButton type="submit" className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white text-lg py-3 font-bold uppercase tracking-wide" disabled={loading}>
+            <CTAButton
+              type="submit"
+              className="w-full bg-gradient-to-r from-indigo-600 to-pink-500 text-white text-lg"
+              style={{ fontSize: 18, padding: "12px 16px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+              disabled={loading}
+            >
               {loading ? "Analyzing..." : "FIND BEST TRIPS"}
             </CTAButton>
           </div>
         </form>
       </GlassCard>
 
-      {/* Results */}
+      {results.length > 1 && (
+        <GlassCard className="mb-6">
+          <div className="text-lg font-bold text-slate-800 mb-2">AI Recommendations</div>
+          <p className="text-sm text-slate-600 mb-4">Personalized suggestions based on total cost, nationality, residency, and visa fees:</p>
+          <ul className="list-disc pl-5 text-slate-700 text-sm">
+            {aiRecommendations().map((rec, i) => (
+              <li key={i}>
+                Consider swapping <b>{rec.from}</b> for <b>{rec.to}</b> to save approximately <b>{formatCurrency(Math.abs(rec.totalDiff))}</b>. Visa difference impact: <b>{formatCurrency(rec.visaDiff)}</b>.
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+
       {results.length > 0 && (
         <div className="space-y-6">
           <div className="text-sm text-slate-600">Results — sorted cheapest first</div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {results.map((r, idx) => (
               <GlassCard key={idx}>
@@ -362,7 +357,6 @@ export default function TravelPlanner() {
                       <div>Days: <span className="font-medium">{r.days}</span></div>
                     </div>
 
-                    {/* 2-column breakdown */}
                     <div className="mt-3">
                       <div className="text-sm font-medium text-slate-800 mb-2">Daily cost breakdown</div>
                       <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
@@ -373,7 +367,6 @@ export default function TravelPlanner() {
                       </div>
                     </div>
 
-                    {/* traveler breakdown expandable */}
                     <div className="mt-4 border-t pt-3">
                       <div className="flex items-center justify-between">
                         <div className="font-semibold text-slate-800">Traveler Breakdown</div>
@@ -386,7 +379,7 @@ export default function TravelPlanner() {
                             <div key={j} className="flex justify-between p-3 rounded-md bg-slate-50 border">
                               <div>
                                 <div className="font-medium">{t.name}</div>
-                                <div className="text-xs text-slate-500">{t.nationality} — {t.residency}</div>
+                                <div className="text-xs text-slate-500">{Array.isArray(t.nationality) ? t.nationality.join(", ") : t.nationality} — {Array.isArray(t.residency) ? t.residency.join(", ") : t.residency}</div>
                               </div>
                               <div className="text-right text-sm">
                                 <div>Flight: {formatCurrency(t.flightCost)}</div>
