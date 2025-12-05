@@ -65,25 +65,60 @@ const Page = ({ children }) => (
 );
 
 const TopHeader = ({ title, subtitle }) => (
-  <header className="space-y-2" style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
-    <h1 className="text-3xl font-extrabold text-slate-900">✈️ {title}</h1>
-    {subtitle && <p className="text-xs text-slate-700">{subtitle}</p>}
+  <header
+    className="space-y-2"
+    style={{ textAlign: "center", padding: "1.75rem 1rem 1.25rem" }}
+  >
+    <h1
+      className="text-3xl md:text-4xl font-extrabold tracking-tight"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.55rem 1.3rem",
+        borderRadius: "999px",
+        background:
+          "linear-gradient(135deg, rgba(255,215,128,0.95), rgba(255,140,180,0.95))",
+        color: "#1a1024",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
+      }}
+    >
+      <span style={{ fontSize: "1.4rem" }}>✈️</span>
+      <span>{title}</span>
+    </h1>
+
+    {subtitle && (
+      <p
+  className="text-sm md:text-base"
+  style={{
+    color: "#f9fafb",
+    textShadow: "0 0 10px rgba(0,0,0,0.9)",
+    maxWidth: "36rem",
+    margin: "0.5rem auto 0",
+  }}
+>
+  {subtitle}
+</p>
+    )}
   </header>
 );
 
+
 const GlassCard = ({ children }) => (
-  <div style={{
-    background: 'rgba(255, 255, 255, 0.5)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255, 255, 255, 0.6)',
-    borderRadius: '1rem',
-    padding: '1rem',
-    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.2)',
-    marginBottom: '1rem'
-  }}>
+  <div
+    style={{
+      background: "rgba(255, 255, 255, 0.92)",
+      border: "1px solid rgba(15,23,42,0.12)",
+      borderRadius: "1.25rem",
+      padding: "1.25rem",
+      boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+    }}
+  >
     {children}
   </div>
 );
+
+
 
 const CTAButton = ({ children, className = "", ...props }) => (
   <button {...props} className={`px-6 py-3 rounded-xl font-bold ${className}`}>
@@ -348,67 +383,205 @@ export default function TravelPlanner() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold block mb-1">Destinations</label>
-              <AsyncCreatableSelect
-                isMulti
-                defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
-                loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
-                value={form.destinations}
-                onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
-                styles={{
-                  control: (base) => ({ ...base, fontSize: '0.875rem' }),
-                  menu: (base) => ({ ...base, fontSize: '0.875rem' })
-                }}
-              />
-            </div>
+  <label className="text-xs font-semibold block mb-1">Destinations</label>
+  <AsyncCreatableSelect
+  isMulti
+  defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
+  loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
+  value={form.destinations}
+  onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
+  styles={{
+    control: (base, state) => ({
+      ...base,
+      fontSize: "0.875rem",
+      borderRadius: "0.75rem",
+      backgroundColor: "#ffffff",
+      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
+      boxShadow: state.isFocused
+        ? "0 0 0 2px rgba(251,191,36,0.55)"
+        : "none",
+    }),
+    menu: (base) => ({
+      ...base,
+      fontSize: "0.875rem",
+      backgroundColor: "#0f172a",  // dark menu to contrast the light card
+      color: "#f9fafb",
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused
+        ? "rgba(251,191,36,0.25)"
+        : "transparent",
+      color: "#f9fafb",
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: "rgba(37,99,235,0.1)",
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: "#1f2937",
+      fontWeight: 500,
+    }),
+  }}
+/>
+
+</div>
+
 
             {form.travelers.map((t, i) => (
-              <div key={i} className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-white bg-opacity-40 rounded-lg">
+              <div key={i} className="w-full rounded-xl border text-sm font-medium
+           bg-white/95 border-slate-300 text-slate-900
+           px-3 py-2.5 shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
+           placeholder:text-slate-400">
                 <div>
                   <label className="text-xs font-semibold block mb-1">Name</label>
-                  <input value={t.name} onChange={(e) => updateTraveler(i, "name", e.target.value)} className="w-full p-1.5 border rounded text-sm" />
+                  <input value={t.name} onChange={(e) => updateTraveler(i, "name", e.target.value)} className="w-full rounded-xl border text-sm font-medium
+           bg-slate-950/70 border-fuchsia-500/70 text-fuchsia-50
+           px-3 py-2.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]
+           focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300
+           placeholder:text-slate-400" />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold block mb-1">Citizenship</label>
-                  <AsyncCreatableSelect
-                    isMulti
-                    defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
-                    loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-                    value={Array.isArray(t.nationality) ? t.nationality.map((n) => ({ label: n, value: n })) : []}
-                    onChange={(o) => updateTraveler(i, "nationality", o ? o.map((x) => x.value) : [])}
-                    styles={{
-                      control: (base) => ({ ...base, minHeight: '32px', fontSize: '0.75rem' }),
-                      menu: (base) => ({ ...base, fontSize: '0.75rem' })
-                    }}
-                  />
-                </div>
+  <label className="text-xs font-semibold block mb-1">Citizenship</label>
+  <AsyncCreatableSelect
+  isMulti
+  defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
+  loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
+  value={
+    Array.isArray(t.nationality)
+      ? t.nationality.map((n) => ({ label: n, value: n }))
+      : []
+  }
+  onChange={(o) =>
+    updateTraveler(
+      i,
+      "nationality",
+      o ? o.map((x) => x.value) : []
+    )
+  }
+  styles={{
+    control: (base, state) => ({
+      ...base,
+      fontSize: "0.75rem",
+      borderRadius: "0.75rem",
+      backgroundColor: "#ffffff",
+      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
+      boxShadow: state.isFocused
+        ? "0 0 0 2px rgba(251,191,36,0.55)"
+        : "none",
+      minHeight: "32px",
+    }),
+    menu: (base) => ({
+      ...base,
+      fontSize: "0.75rem",
+      backgroundColor: "#0f172a",
+      color: "#f9fafb",
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused
+        ? "rgba(251,191,36,0.25)"
+        : "transparent",
+      color: "#f9fafb",
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: "rgba(37,99,235,0.1)",
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: "#1f2937",
+      fontWeight: 500,
+    }),
+  }}
+/>
+
+</div>
+
 
                 <div>
-                  <label className="text-xs font-semibold block mb-1">Visa / Residency</label>
-                  <AsyncCreatableSelect
-                    isMulti
-                    defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
-                    loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-                    value={Array.isArray(t.residency) ? t.residency.map((n) => ({ label: n, value: n })) : []}
-                    onChange={(o) => updateTraveler(i, "residency", o ? o.map((x) => x.value) : [])}
-                    styles={{
-                      control: (base) => ({ ...base, minHeight: '32px', fontSize: '0.75rem' }),
-                      menu: (base) => ({ ...base, fontSize: '0.75rem' })
-                    }}
-                  />
-                </div>
+  <label className="text-xs font-semibold block mb-1">Visa / Residency</label>
+  <AsyncCreatableSelect
+  isMulti
+  defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
+  loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
+  value={
+    Array.isArray(t.residency)
+      ? t.residency.map((n) => ({ label: n, value: n }))
+      : []
+  }
+  onChange={(o) =>
+    updateTraveler(
+      i,
+      "residency",
+      o ? o.map((x) => x.value) : []
+    )
+  }
+  styles={{
+    control: (base, state) => ({
+      ...base,
+      fontSize: "0.75rem",
+      borderRadius: "0.75rem",
+      backgroundColor: "#ffffff",
+      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
+      boxShadow: state.isFocused
+        ? "0 0 0 2px rgba(251,191,36,0.55)"
+        : "none",
+      minHeight: "32px",
+    }),
+    menu: (base) => ({
+      ...base,
+      fontSize: "0.75rem",
+      backgroundColor: "#0f172a",
+      color: "#f9fafb",
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isFocused
+        ? "rgba(56,189,248,0.25)"
+        : "transparent",
+      color: "#f9fafb",
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: "rgba(56,189,248,0.15)",
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: "#0f172a",
+      fontWeight: 500,
+    }),
+  }}
+/>
+
+</div>
 
                 <div>
                   <label className="text-xs font-semibold block mb-1">Age</label>
-                  <input type="number" value={t.age} onChange={(e) => updateTraveler(i, "age", e.target.value)} className="w-full p-1.5 border rounded text-sm" />
+                  <input type="number" value={t.age} onChange={(e) => updateTraveler(i, "age", e.target.value)} className="w-full rounded-xl border text-sm font-medium
+           bg-slate-950/70 border-fuchsia-500/70 text-fuchsia-50
+           px-3 py-2.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]
+           focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300
+           placeholder:text-slate-400" />
                 </div>
               </div>
             ))}
 
             <div className="flex gap-2">
               <button type="button" onClick={addTraveler} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium">+ Add Traveler</button>
-              <CTAButton type="submit" className="bg-indigo-600 text-white flex-1 text-sm">{loading ? "Analyzing..." : "FIND BEST TRIPS"}</CTAButton>
+              <CTAButton
+  type="submit"
+  className="bg-gradient-to-r from-amber-300 via-fuchsia-400 to-sky-400
+             text-slate-950 text-sm font-extrabold tracking-wide
+             shadow-lg shadow-fuchsia-900/60
+             hover:brightness-110 hover:shadow-xl
+             transition transform hover:-translate-y-0.5"
+>
+  {loading ? "Analyzing..." : "FIND BEST TRIPS"}
+</CTAButton>
             </div>
           </form>
         </GlassCard>
