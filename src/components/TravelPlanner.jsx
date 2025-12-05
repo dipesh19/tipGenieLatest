@@ -2,12 +2,11 @@ import React, { useState } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
 /**
- * TravelPlanner.jsx — cleaned and fixed final version
- * - All JSX tags properly closed
- * - Field labels restored
- * - Destination selector fixed
- * - Multi-select citizenship & residency
- * - Country-specific visa fees (USD)
+ * TravelPlanner.jsx — corrected and stable
+ * - Fixed JSX mismatched tags
+ * - Hybrid flight pricing (origin optional)
+ * - Tiered fallback daily costs
+ * - Defensive runtime checks
  */
 
 /* ---------------- utilities ---------------- */
@@ -19,24 +18,21 @@ const extractCountry = (label = "") => {
 
 /* ---------------- UI primitives ---------------- */
 const Page = ({ children }) => (
-  <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white py-8 px-4 sm:px-6 md:px-10">
-    <div className="max-w-6xl mx-auto">{children}</div>
+  <div className="min-h-screen bg-slate-50 py-10 px-6">
+    <div className="max-w-7xl mx-auto space-y-8">{children}</div>
   </div>
 );
 
 const TopHeader = ({ title, subtitle }) => (
-  <header className="mb-6">
-    <h1 className="text-3xl font-extrabold text-slate-900">✈️ {title}</h1>
-    {subtitle && <p className="mt-2 text-sm text-slate-600">{subtitle}</p>}
+  <header className="space-y-2">
+    <h1 className="text-4xl font-extrabold text-slate-900">✈️ {title}</h1>
+    {subtitle && <p className="text-sm text-slate-600">{subtitle}</p>}
   </header>
 );
 
-const GlassCard = ({ children, className = "" }) => (
-  <div className={`bg-white border rounded-2xl p-4 shadow ${className}`}>{children}</div>
-);
-
-const CTAButton = ({ children, className = "", style = {}, ...props }) => (
-  <button {...props} style={style} className={`inline-flex items-center justify-center px-4 py-2 rounded-md font-semibold transition ${className}`}>
+const GlassCard = ({ children }) => <div className="bg-white border rounded-2xl p-6 shadow-sm">{children}</div>;
+const CTAButton = ({ children, className = "", ...props }) => (
+  <button {...props} className={`px-6 py-3 rounded-xl font-bold ${className}`}>
     {children}
   </button>
 );
@@ -52,60 +48,49 @@ const FALLBACK_CITIES = [
   "Singapore",
   "Dubai, United Arab Emirates",
   "Toronto, Canada",
+  "Delhi, India",
 ];
 
-const NATIONALITY_LIST = ["India","United States","United Kingdom","Canada","Germany","France","Japan","Singapore","Spain","Italy"];
-const RESIDENCY_LIST = ["US Green Card","US Visa","EU PR","Schengen Visa","UK Settlement Visa","Canadian PR","GCC Resident Visa","Singapore PR","Japan Residence Card"];
+const NATIONALITY_LIST = [
+  "India",
+  "United States",
+  "United Kingdom",
+  "Canada",
+  "Germany",
+  "France",
+  "Japan",
+  "Singapore",
+  "Spain",
+  "Italy",
+];
+const RESIDENCY_LIST = [
+  "US Green Card",
+  "US Visa",
+  "EU PR",
+  "Schengen Visa",
+  "UK Settlement Visa",
+  "Canadian PR",
+  "GCC Resident Visa",
+  "Singapore PR",
+  "Japan Residence Card",
+];
 
-/* ---------------- Helpers ---------------- */
 const loadSimpleOptions = (list) => async (input) => {
   const q = (input || "").toLowerCase();
   return list.filter((x) => x.toLowerCase().includes(q)).map((x) => ({ label: x, value: x }));
 };
-
-/* ---------------- VISA PRICING (USD ONLY) ---------------- */
-const VISA_FEES_USD = {
-  schengen: 105.62,
-  turkey: 60,
-  usa: 160,
-};
-
-function computeVisaFee(destination, nationalities = [], residencies = []) {
-  const destCountry = extractCountry(destination).toLowerCase();
-  const nat = (nationalities || []).map((n) => String(n).toLowerCase());
-  const res = (residencies || []).map((r) => String(r).toLowerCase());
-
-  // Same nationality => free
-  if (nat.includes(destCountry)) return 0;
-
-  // Schengen countries — uniform fee or free if Schengen visa / EU PR
-  const SCHENGEN = ["france","germany","italy","spain","portugal","netherlands","belgium","sweden","norway","finland","switzerland","austria","greece","denmark","iceland","czech republic","poland","hungary","luxembourg","malta"];
-  if (SCHENGEN.includes(destCountry)) {
-    const hasRight = res.some((r) => r.includes("schengen") || r.includes("eu pr"));
-    return hasRight ? 0 : VISA_FEES_USD.schengen;
-  }
-
-  // Turkey — Schengen visa does NOT exempt; use Turkey fee for many nationalities
-  if (destCountry === "turkey") return VISA_FEES_USD.turkey;
-
-  // USA / Hawaii — require US citizen or US visa/green card
-  const US_TERRITORIES = ["united states","usa","hawaii","puerto rico","guam","us virgin islands"];
-  const hasUSRight = nat.includes("united states") || res.some((r) => r.includes("green card") || r.includes("us visa"));
-  if (US_TERRITORIES.includes(destCountry)) return hasUSRight ? 0 : VISA_FEES_USD.usa;
-
-  // Default fallback
-  return 160;
-}
 
 /* ---------------- main component ---------------- */
 export default function TravelPlanner() {
   const [form, setForm] = useState({
     startDate: "",
     endDate: "",
+    origin: "",
     destinations: [],
     travelers: [{ name: "", nationality: [], residency: [], age: "" }],
   });
   const [results, setResults] = useState([]);
+  const [aiInsights, setAiInsights] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const addTraveler = () =>
@@ -118,167 +103,304 @@ export default function TravelPlanner() {
       return { ...p, travelers: t };
     });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e) => {
+    e?.preventDefault();
     setLoading(true);
 
-    const days = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)));
+    const days = Math.max(
+      1,
+      Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24))
+    );
 
-    const built = (form.destinations || []).map((d) => {
-      const breakdown = { lodging: 70, food: 40, transport: 20, misc: 13 };
+    // API calls to your Next.js pages/api routes
+    let costsRes = [];
+    let flightsRes = [];
+    let visaRes = [];
 
-      const travelerBreakdown = (form.travelers || []).map((t, ti) => {
-        const visaFee = computeVisaFee(d.value, t.nationality, t.residency);
-        const flightCost = 400 + ti * 20;
-        const tripDaily = (breakdown.lodging + breakdown.food + breakdown.transport + breakdown.misc) * days;
-        const total = Math.round(flightCost + tripDaily + visaFee);
-        return { name: t.name || `Traveler ${ti + 1}`, visaFee, flightCost, tripDaily, total };
-      });
+    try {
+      costsRes = await fetch("/api/costs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ destinations: form.destinations.map((d) => d.value) }),
+      }).then((r) => r.json()).catch(() => []);
+    } catch (err) {
+      costsRes = [];
+    }
 
-      const grandTotal = travelerBreakdown.reduce((s, t) => s + t.total, 0);
-      return { destination: d.value, breakdown, travelerBreakdown, grandTotal };
+    try {
+      flightsRes = await fetch("/api/flights", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ origin: form.origin || null, destinations: form.destinations.map((d) => d.value) }),
+      }).then((r) => r.json()).catch(() => []);
+    } catch (err) {
+      flightsRes = [];
+    }
+
+    try {
+      visaRes = await fetch("/api/visa", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ destinations: form.destinations.map((d) => d.value), travelers: form.travelers }),
+      }).then((r) => r.json()).catch(() => []);
+    } catch (err) {
+      visaRes = [];
+    }
+
+    // Tiered fallback rough cost estimates (USD per day)
+    const COST_TIERS = {
+      expensive: { lodging: 140, food: 75, transport: 35, misc: 25 },
+      mid: { lodging: 85, food: 45, transport: 22, misc: 15 },
+      cheap: { lodging: 45, food: 25, transport: 14, misc: 10 },
+    };
+
+    const EXPENSIVE_COUNTRIES = [
+      "United States",
+      "Canada",
+      "Japan",
+      "Singapore",
+      "France",
+      "Germany",
+      "United Kingdom",
+      "Italy",
+      "Switzerland",
+      "Australia",
+    ];
+    const MID_COUNTRIES = ["Turkey", "Thailand", "Malaysia", "China", "Mexico", "Brazil", "South Africa", "Poland", "Portugal"];
+
+    // Visa rule helpers
+    const SCHENGEN = ["france","germany","italy","spain","portugal","netherlands","belgium","sweden","norway","finland","switzerland","austria","greece","denmark","iceland","czech republic","poland","hungary","luxembourg","malta"];
+    const TURKEY_VISA_FREE = ["united states","united kingdom","germany","france","japan","canada","australia"]; // common visa-free countries for Turkey
+
+    const computeVisaFeeForTraveler = (destCountryRaw, traveler) => {
+      const dest = (destCountryRaw || "").toLowerCase();
+      const nationalities = (Array.isArray(traveler.nationality) ? traveler.nationality : [traveler.nationality]).map((n) => (n || "").toLowerCase());
+      const residencies = (Array.isArray(traveler.residency) ? traveler.residency : [traveler.residency]).map((r) => (r || "").toLowerCase());
+
+      // Same-country
+      if (nationalities.includes(dest)) return 0;
+
+      // Schengen: standard fee unless traveler has Schengen Visa / EU PR / is Schengen national
+      if (SCHENGEN.includes(dest)) {
+        if (residencies.some((r) => r.includes("schengen")) || residencies.some((r) => r.includes("eu pr")) || nationalities.some((n) => SCHENGEN.includes(n))) return 0;
+        return 105.62; // standard Schengen visa fee (USD)
+      }
+
+      // Turkey: Schengen visa does NOT grant entry. Only some passports visa-free.
+      if (dest === "turkey" || dest.includes("turkey")) {
+        if (nationalities.some((n) => TURKEY_VISA_FREE.includes(n))) return 0;
+        return 50; // e-visa approximate
+      }
+
+      // USA: green card holders or US nationals are exempt; others likely need visa (estimate)
+      if (dest === "united states" || dest === "usa" || dest === "united states of america" || dest.includes("hawaii")) {
+        if (nationalities.includes("united states") || residencies.some((r) => r.includes("green card"))) return 0;
+        return 160; // non-immigrant visa estimate
+      }
+
+      // Japan / Canada: many passports visa-free (quick rule for US)
+      if (dest === "japan" || dest === "canada") {
+        if (nationalities.includes("united states") || nationalities.includes("canada") || nationalities.includes("japan")) return 0;
+        return 0; // assume visa-free for many nationalities; default 0
+      }
+
+      // Default conservative estimate: assume no visa fee unless known
+      return 0;
+    };
+
+    const resolveCostTier = (destination) => {
+      const city = String(destination || "").toLowerCase();
+      const country = extractCountry(destination).toLowerCase();
+
+      // City-level overrides (more accurate than country)
+      if (city.includes("new york")) return COST_TIERS.expensive;
+      if (city.includes("tokyo")) return COST_TIERS.expensive;
+      if (city.includes("singapore")) return COST_TIERS.expensive;
+      if (city.includes("paris") || city.includes("rome") || city.includes("milan") || city.includes("madrid") || city.includes("barcelona")) return COST_TIERS.expensive;
+      if (city.includes("london") || city.includes("zurich") || city.includes("geneva")) return COST_TIERS.expensive;
+
+      if (city.includes("istanbul") || city.includes("bangkok") || city.includes("kuala") || city.includes("dubai")) return COST_TIERS.mid;
+
+      if (city.includes("delhi") || city.includes("mumbai") || city.includes("bangalore") || city.includes("jakarta") || city.includes("manila")) return COST_TIERS.cheap;
+
+      // Fallback by country tier
+      if (EXPENSIVE_COUNTRIES.map((x) => x.toLowerCase()).includes(country)) return COST_TIERS.expensive;
+      if (MID_COUNTRIES.map((x) => x.toLowerCase()).includes(country)) return COST_TIERS.mid;
+      return COST_TIERS.cheap;
+    };
+
+    const built = (form.destinations || []).map((d, i) => {
+      const tierFallback = resolveCostTier(d.value);
+      const breakdown = {
+        lodging: Number(costsRes?.[i]?.lodging ?? tierFallback.lodging),
+        food: Number(costsRes?.[i]?.food ?? tierFallback.food),
+        transport: Number(costsRes?.[i]?.transport ?? tierFallback.transport),
+        misc: Number(costsRes?.[i]?.misc ?? tierFallback.misc),
+      };
+
+      // compute visa fee per traveler using local rules if API missing
+      const destCountry = extractCountry(d.value);
+      const visaFee = (visaRes && visaRes[i]) || form.travelers.reduce((sum, t) => sum + computeVisaFeeForTraveler(destCountry, t), 0);
+      const flightCost = Number(flightsRes?.[i]?.price ?? flightsRes?.[i]?.cost ?? (form.origin ? 450 : 500));
+
+      const tripDaily =
+        (Number(breakdown?.lodging || 0) + Number(breakdown?.food || 0) + Number(breakdown?.transport || 0) + Number(breakdown?.misc || 0)) * days;
+      const total = Math.round(flightCost + tripDaily + Number(visaFee || 0));
+
+      return { destination: d.value, breakdown, visaFee: Number(visaFee || 0), flightCost, total };
     });
 
+    const sorted = [...built].sort((a, b) => a.total - b.total);
+    const insightList = sorted.slice(1).map((x) => `Swap ${x.destination} for ${sorted[0]?.destination} to save ${formatCurrency(x.total - sorted[0]?.total)}`);
+
+    // Runtime safety tests
+    console.assert(!built.some((x) => typeof x.total !== "number" || isNaN(x.total)), "TEST FAILED: totals must be valid numbers");
+    console.assert(!built.some((x) => !x.breakdown), "TEST FAILED: breakdown must always exist");
+
+    setAiInsights(insightList);
     setResults(built);
     setLoading(false);
   };
 
   return (
     <Page>
-      <TopHeader title="Trips Genie" subtitle="AI-powered travel cost analysis & destination comparison — All prices shown in USD" />
+      <TopHeader title="Trips Genie - AI" subtitle="Destination total cost estimator." />
 
-      <GlassCard className="mb-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+      <GlassCard>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
             <div>
-              <label className="text-sm block mb-1">Start Date</label>
+              <label className="font-semibold">Start Date</label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
-                className="p-2 border rounded w-full"
+                className="w-full p-2 border rounded-lg"
                 required
               />
             </div>
 
             <div>
-              <label className="text-sm block mb-1">End Date</label>
+              <label className="font-semibold">End Date</label>
               <input
                 type="date"
                 value={form.endDate}
                 onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
-                className="p-2 border rounded w-full"
+                className="w-full p-2 border rounded-lg"
                 required
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-sm block mb-1">Destinations (up to 5)</label>
-            <AsyncCreatableSelect
-              isMulti
-              cacheOptions
-              defaultOptions
-              loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
-              value={form.destinations}
-              onChange={(v) => setForm((p) => ({ ...p, destinations: v ? v.slice(0, 5) : [] }))}
-              placeholder="Search city (e.g. Paris, France)"
+          <div className="md:col-span-2">
+            <label className="font-semibold">Flight Origin (optional)</label>
+            <input
+              placeholder="e.g. JFK, DEL, LHR"
+              value={form.origin}
+              onChange={(e) => setForm((p) => ({ ...p, origin: e.target.value }))}
+              className="w-full p-2 border rounded-lg"
             />
           </div>
 
-          <div>
-            <div className="text-sm font-semibold mb-2">Travelers</div>
-
-            {(form.travelers || []).map((t, i) => (
-              <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-start mb-3">
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Name</label>
-                  <input
-                    placeholder="Name"
-                    value={t.name}
-                    onChange={(e) => updateTraveler(i, "name", e.target.value)}
-                    className="p-2 border rounded w-full"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Citizenship</label>
-                  <AsyncCreatableSelect
-                    isMulti
-                    cacheOptions
-                    defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
-                    loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-                    value={Array.isArray(t.nationality) ? t.nationality.map((n) => ({ label: n, value: n })) : []}
-                    onChange={(opts) => updateTraveler(i, "nationality", opts ? opts.map((o) => o.value) : [])}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Visa / Residency</label>
-                  <AsyncCreatableSelect
-                    isMulti
-                    cacheOptions
-                    defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
-                    loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-                    value={Array.isArray(t.residency) ? t.residency.map((r) => ({ label: r, value: r })) : []}
-                    onChange={(opts) => updateTraveler(i, "residency", opts ? opts.map((o) => o.value) : [])}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">Age</label>
-                  <input
-                    type="number"
-                    placeholder="Age"
-                    value={t.age}
-                    onChange={(e) => updateTraveler(i, "age", e.target.value)}
-                    className="p-2 border rounded w-full"
-                  />
-                </div>
-              </div>
-            ))}
-
-            <div>
-              <button type="button" onClick={addTraveler} className="px-3 py-1.5 rounded-md bg-slate-900 text-white text-sm">
-                + Add Traveler
-              </button>
-            </div>
+          <div className="md:col-span-2">
+            <label className="font-semibold">Destinations</label>
+            <AsyncCreatableSelect
+              isMulti
+              defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
+              loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
+              value={form.destinations}
+              onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
+            />
           </div>
 
-          <div>
-            <CTAButton type="submit" className="w-full bg-indigo-600 text-white" style={{ fontWeight: 700 }} disabled={loading}>
-              {loading ? "Analyzing..." : "FIND BEST TRIPS"}
-            </CTAButton>
+          {form.travelers.map((t, i) => (
+            <React.Fragment key={i}>
+              <div>
+                <label className="text-xs font-semibold">Name</label>
+                <input value={t.name} onChange={(e) => updateTraveler(i, "name", e.target.value)} className="w-full p-2 border rounded-lg" />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold">Citizenship</label>
+                <AsyncCreatableSelect
+                  isMulti
+                  defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
+                  loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
+                  value={Array.isArray(t.nationality) ? t.nationality.map((n) => ({ label: n, value: n })) : []}
+                  onChange={(o) => updateTraveler(i, "nationality", o ? o.map((x) => x.value) : [])}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold">Visa / Residency</label>
+                <AsyncCreatableSelect
+                  isMulti
+                  defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
+                  loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
+                  value={Array.isArray(t.residency) ? t.residency.map((n) => ({ label: n, value: n })) : []}
+                  onChange={(o) => updateTraveler(i, "residency", o ? o.map((x) => x.value) : [])}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold">Age</label>
+                <input type="number" value={t.age} onChange={(e) => updateTraveler(i, "age", e.target.value)} className="w-full p-2 border rounded-lg" />
+              </div>
+            </React.Fragment>
+          ))}
+
+          <div className="md:col-span-2 flex gap-4">
+            <button type="button" onClick={addTraveler} className="px-4 py-2 bg-slate-900 text-white rounded-lg">+ Add Traveler</button>
+            <CTAButton type="submit" className="bg-indigo-600 text-white">{loading ? "Analyzing..." : "FIND BEST TRIPS"}</CTAButton>
           </div>
         </form>
       </GlassCard>
 
+      {aiInsights.length > 0 && (
+        <GlassCard>
+          <ul className="list-disc pl-6">{aiInsights.map((x, i) => (
+            <li key={i}>{x}</li>
+          ))}</ul>
+        </GlassCard>
+      )}
+
       {results.length > 0 && (
         <GlassCard>
-          <table className="w-full text-sm border">
+          <table className="w-full border text-sm">
             <thead className="bg-slate-100">
               <tr>
-                <th className="border p-2 text-left">Destination</th>
-                <th className="border p-2 text-right">Flight (USD)</th>
-                <th className="border p-2 text-right">Lodging (USD)</th>
-                <th className="border p-2 text-right">Food (USD)</th>
-                <th className="border p-2 text-right">Transport (USD)</th>
-                <th className="border p-2 text-right">Misc (USD)</th>
-                <th className="border p-2 text-right">Visa (USD)</th>
-                <th className="border p-2 text-right">Total (USD)</th>
+                <th className="p-2">Destination</th>
+                <th className="p-2">Flight</th>
+                <th className="p-2">Lodging</th>
+                <th className="p-2">Food</th>
+                <th className="p-2">Transport</th>
+                <th className="p-2">Misc</th>
+                <th className="p-2">Visa</th>
+                <th className="p-2">Total</th>
+                <th className="p-2">Book</th>
               </tr>
             </thead>
             <tbody>
               {results.map((r, i) => (
-                <tr key={i} className="text-sm">
-                  <td className="border p-2">{r.destination}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.travelerBreakdown[0]?.flightCost)}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.breakdown.lodging)}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.breakdown.food)}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.breakdown.transport)}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.breakdown.misc)}</td>
-                  <td className="border p-2 text-right">{formatCurrency(r.travelerBreakdown[0]?.visaFee)}</td>
-                  <td className="border p-2 text-right font-bold">{formatCurrency(r.grandTotal)}</td>
+                <tr key={i}>
+                  <td className="p-2">{r.destination}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.flightCost)}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.breakdown?.lodging || 0)}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.breakdown?.food || 0)}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.breakdown?.transport || 0)}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.breakdown?.misc || 0)}</td>
+                  <td className="p-2 text-right">{formatCurrency(r.visaFee)}</td>
+                  <td className="p-2 text-right font-bold">{formatCurrency(r.total)}</td>
+                  <td className="p-2 text-center">
+                    <a
+                      href={`https://www.kayak.com/flights/${form.origin || "NYC"}/${encodeURIComponent(r.destination.split(",")[0])}/${form.startDate}/${form.endDate}?affiliate=tripsgenie`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-600 font-semibold"
+                    >
+                      Book
+                    </a>
+                  </td>
                 </tr>
               ))}
             </tbody>
