@@ -1,15 +1,52 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
 /**
- * TravelPlanner.jsx — with background image
+ * TravelPlanner.jsx — with enhanced AI insights and typing animation
  */
 
 /* ---------------- utilities ---------------- */
-const formatCurrency = (n) => (n == null || n === "" ? "-" : `$${Number(n).toFixed(2)}`);
+const formatCurrency = (n) =>
+  n == null || n === "" ? "-" : `$${Number(n).toFixed(2)}`;
+
 const extractCountry = (label = "") => {
   const parts = String(label).split(",");
   return parts.length > 1 ? parts[parts.length - 1].trim() : parts[0].trim();
+};
+
+/* ---------------- Typing Animation Component ---------------- */
+const TypingText = ({ text, speed = 30 }) => {
+  const [displayText, setDisplayText] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!text) {
+      setDisplayText("");
+      setCurrentIndex(0);
+      return;
+    }
+
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayText((prev) => prev + text[currentIndex]);
+        setCurrentIndex((prev) => prev + 1);
+      }, speed);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, text, speed]);
+
+  useEffect(() => {
+    // reset typing when text changes
+    setDisplayText("");
+    setCurrentIndex(0);
+  }, [text]);
+
+  return (
+    <span>
+      {displayText}
+      <span className="typing-cursor">|</span>
+    </span>
+  );
 };
 
 /* ---------------- UI primitives ---------------- */
@@ -22,7 +59,7 @@ const Page = ({ children }) => (
       backgroundColor: "#0b0b12",
     }}
   >
-    {/* Crisp, repeated background illustration */}
+    {/* Background image */}
     <div
       style={{
         position: "fixed",
@@ -31,14 +68,13 @@ const Page = ({ children }) => (
         backgroundSize: "260px auto",
         backgroundRepeat: "repeat",
         backgroundPosition: "center",
-        opacity: 1,                              // fully visible
-        filter: "brightness(1.1) contrast(1.5)", // high contrast, no extra color
+        opacity: 1,
+        filter: "brightness(1.1) contrast(1.5)",
         zIndex: 0,
         pointerEvents: "none",
       }}
     />
 
-    {/* Very subtle dark tint, no blur */}
     <div
       style={{
         position: "fixed",
@@ -61,6 +97,23 @@ const Page = ({ children }) => (
     >
       {children}
     </main>
+
+    <style jsx>{`
+      .typing-cursor {
+        animation: blink 1s infinite;
+        font-weight: 100;
+      }
+      @keyframes blink {
+        0%,
+        49% {
+          opacity: 1;
+        }
+        50%,
+        100% {
+          opacity: 0;
+        }
+      }
+    `}</style>
   </div>
 );
 
@@ -89,20 +142,19 @@ const TopHeader = ({ title, subtitle }) => (
 
     {subtitle && (
       <p
-  className="text-sm md:text-base"
-  style={{
-    color: "#f9fafb",
-    textShadow: "0 0 10px rgba(0,0,0,0.9)",
-    maxWidth: "36rem",
-    margin: "0.5rem auto 0",
-  }}
->
-  {subtitle}
-</p>
+        className="text-sm md:text-base"
+        style={{
+          color: "#f9fafb",
+          textShadow: "0 0 10px rgba(0,0,0,0.9)",
+          maxWidth: "36rem",
+          margin: "0.5rem auto 0",
+        }}
+      >
+        {subtitle}
+      </p>
     )}
   </header>
 );
-
 
 const GlassCard = ({ children }) => (
   <div
@@ -112,13 +164,12 @@ const GlassCard = ({ children }) => (
       borderRadius: "1.25rem",
       padding: "1.25rem",
       boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+      marginBottom: "1rem",
     }}
   >
     {children}
   </div>
 );
-
-
 
 const CTAButton = ({ children, className = "", ...props }) => (
   <button {...props} className={`px-6 py-3 rounded-xl font-bold ${className}`}>
@@ -152,6 +203,7 @@ const NATIONALITY_LIST = [
   "Spain",
   "Italy",
 ];
+
 const RESIDENCY_LIST = [
   "US Green Card",
   "US Visa",
@@ -166,7 +218,9 @@ const RESIDENCY_LIST = [
 
 const loadSimpleOptions = (list) => async (input) => {
   const q = (input || "").toLowerCase();
-  return list.filter((x) => x.toLowerCase().includes(q)).map((x) => ({ label: x, value: x }));
+  return list
+    .filter((x) => x.toLowerCase().includes(q))
+    .map((x) => ({ label: x, value: x }));
 };
 
 /* ---------------- main component ---------------- */
@@ -180,10 +234,17 @@ export default function TravelPlanner() {
   });
   const [results, setResults] = useState([]);
   const [aiInsights, setAiInsights] = useState([]);
+  const [showInsights, setShowInsights] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const addTraveler = () =>
-    setForm((p) => ({ ...p, travelers: [...p.travelers, { name: "", nationality: [], residency: [], age: "" }] }));
+    setForm((p) => ({
+      ...p,
+      travelers: [
+        ...p.travelers,
+        { name: "", nationality: [], residency: [], age: "" },
+      ],
+    }));
 
   const updateTraveler = (i, key, val) =>
     setForm((p) => {
@@ -192,16 +253,189 @@ export default function TravelPlanner() {
       return { ...p, travelers: t };
     });
 
+  /* --------- AI insights generator --------- */
+  const generateDetailedInsights = (results, days) => {
+    const insights = [];
+
+    if (results.length === 1) {
+      const r = results[0];
+      const dailyCost = Math.round(
+        r.breakdown.lodging +
+          r.breakdown.food +
+          r.breakdown.transport +
+          r.breakdown.misc
+      );
+
+      insights.push(
+        `🎯 Planning a ${days}-day trip to ${r.destination}! Here's your complete breakdown:`
+      );
+      insights.push(
+        `✈️ Flight: ${formatCurrency(
+          r.flightCost
+        )} - Your journey begins here!`
+      );
+      insights.push(
+        `🏨 Accommodation: ${formatCurrency(
+          r.breakdown.lodging
+        )} per day (${formatCurrency(
+          r.breakdown.lodging * days
+        )} total) - Comfortable stays await you.`
+      );
+      insights.push(
+        `🍽️ Food: ${formatCurrency(
+          r.breakdown.food
+        )} per day (${formatCurrency(
+          r.breakdown.food * days
+        )} total) - Savor local cuisine!`
+      );
+      insights.push(
+        `🚕 Local Transport: ${formatCurrency(
+          r.breakdown.transport
+        )} per day (${formatCurrency(
+          r.breakdown.transport * days
+        )} total) - Getting around made easy.`
+      );
+      insights.push(
+        `🎭 Activities & Misc: ${formatCurrency(
+          r.breakdown.misc
+        )} per day (${formatCurrency(
+          r.breakdown.misc * days
+        )} total) - Make memories!`
+      );
+
+      if (r.visaFee > 0) {
+        insights.push(
+          `📋 Visa Fees: ${formatCurrency(
+            r.visaFee
+          )} - Don't forget to apply in advance!`
+        );
+      } else {
+        insights.push(
+          `📋 Great news! No visa fees required for this destination! 🎉`
+        );
+      }
+
+      insights.push(
+        `💰 Daily Budget: ${formatCurrency(
+          dailyCost
+        )} - Plan your spending wisely.`
+      );
+      insights.push(
+        `🎊 Total Trip Cost: ${formatCurrency(
+          r.total
+        )} - Your adventure awaits!`
+      );
+    } else if (results.length > 1) {
+      const sorted = [...results].sort((a, b) => a.total - b.total);
+      const cheapest = sorted[0];
+      const mostExpensive = sorted[sorted.length - 1];
+
+      insights.push(
+        `🔍 Comparing ${results.length} amazing destinations for your ${days}-day adventure!`
+      );
+      insights.push(
+        `💡 Best Value: ${cheapest.destination} at ${formatCurrency(
+          cheapest.total
+        )} - The most budget-friendly option!`
+      );
+
+      for (let i = 1; i < Math.min(3, sorted.length); i++) {
+        const current = sorted[i];
+        const savings = current.total - cheapest.total;
+        const flightDiff = current.flightCost - cheapest.flightCost;
+        const accomDiff =
+          (current.breakdown.lodging - cheapest.breakdown.lodging) * days;
+        const foodDiff =
+          (current.breakdown.food - cheapest.breakdown.food) * days;
+        const visaDiff = current.visaFee - cheapest.visaFee;
+
+        const breakdown = [];
+        if (Math.abs(flightDiff) > 50)
+          breakdown.push(
+            `${formatCurrency(Math.abs(flightDiff))} on flights`
+          );
+        if (Math.abs(accomDiff) > 100)
+          breakdown.push(
+            `${formatCurrency(Math.abs(accomDiff))} on accommodation`
+          );
+        if (Math.abs(foodDiff) > 50)
+          breakdown.push(
+            `${formatCurrency(Math.abs(foodDiff))} on food`
+          );
+        if (Math.abs(visaDiff) > 0)
+          breakdown.push(
+            `${formatCurrency(Math.abs(visaDiff))} on visa fees`
+          );
+
+        const breakdownText =
+          breakdown.length > 0
+            ? ` (Save ${breakdown.join(", ")})`
+            : "";
+
+        insights.push(
+          `📊 ${
+            current.destination
+          }: ${formatCurrency(current.total)} - Choose ${
+            cheapest.destination
+          } instead to save ${formatCurrency(savings)}${breakdownText}`
+        );
+      }
+
+      if (sorted.length > 3) {
+        insights.push(
+          `💸 Most Expensive: ${
+            mostExpensive.destination
+          } at ${formatCurrency(
+            mostExpensive.total
+          )} - ${formatCurrency(
+            mostExpensive.total - cheapest.total
+          )} more than ${cheapest.destination}`
+        );
+      }
+
+      const cheapestFlight = sorted.reduce((a, b) =>
+        a.flightCost < b.flightCost ? a : b
+      );
+      const cheapestAccom = sorted.reduce((a, b) =>
+        a.breakdown.lodging < b.breakdown.lodging ? a : b
+      );
+      const cheapestFood = sorted.reduce((a, b) =>
+        a.breakdown.food < b.breakdown.food ? a : b
+      );
+
+      insights.push(
+        `✈️ Cheapest Flights: ${cheapestFlight.destination} (${formatCurrency(
+          cheapestFlight.flightCost
+        )})`
+      );
+      insights.push(
+        `🏨 Best Accommodation Deals: ${
+          cheapestAccom.destination
+        } (${formatCurrency(cheapestAccom.breakdown.lodging)}/day)`
+      );
+      insights.push(
+        `🍽️ Most Affordable Food: ${
+          cheapestFood.destination
+        } (${formatCurrency(cheapestFood.breakdown.food)}/day)`
+      );
+    }
+
+    return insights;
+  };
+
   const handleSubmit = async (e) => {
     e?.preventDefault();
     setLoading(true);
+    setShowInsights(false);
 
     const days = Math.max(
       1,
-      Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24))
+      Math.round(
+        (new Date(form.endDate) - new Date(form.startDate)) /
+          (1000 * 60 * 60 * 24)
+      )
     );
 
-    // API calls to your Next.js pages/api routes
     let costsRes = [];
     let flightsRes = [];
     let visaRes = [];
@@ -210,9 +444,13 @@ export default function TravelPlanner() {
       costsRes = await fetch("/api/costs", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ destinations: form.destinations.map((d) => d.value) }),
-      }).then((r) => r.json()).catch(() => []);
-    } catch (err) {
+        body: JSON.stringify({
+          destinations: form.destinations.map((d) => d.value),
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => []);
+    } catch {
       costsRes = [];
     }
 
@@ -220,9 +458,14 @@ export default function TravelPlanner() {
       flightsRes = await fetch("/api/flights", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ origin: form.origin || null, destinations: form.destinations.map((d) => d.value) }),
-      }).then((r) => r.json()).catch(() => []);
-    } catch (err) {
+        body: JSON.stringify({
+          origin: form.origin || null,
+          destinations: form.destinations.map((d) => d.value),
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => []);
+    } catch {
       flightsRes = [];
     }
 
@@ -230,13 +473,17 @@ export default function TravelPlanner() {
       visaRes = await fetch("/api/visa", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ destinations: form.destinations.map((d) => d.value), travelers: form.travelers }),
-      }).then((r) => r.json()).catch(() => []);
-    } catch (err) {
+        body: JSON.stringify({
+          destinations: form.destinations.map((d) => d.value),
+          travelers: form.travelers,
+        }),
+      })
+        .then((r) => r.json())
+        .catch(() => []);
+    } catch {
       visaRes = [];
     }
 
-    // Tiered fallback rough cost estimates (USD per day)
     const COST_TIERS = {
       expensive: { lodging: 140, food: 75, transport: 35, misc: 25 },
       mid: { lodging: 85, food: 45, transport: 22, misc: 15 },
@@ -255,21 +502,72 @@ export default function TravelPlanner() {
       "Switzerland",
       "Australia",
     ];
-    const MID_COUNTRIES = ["Turkey", "Thailand", "Malaysia", "China", "Mexico", "Brazil", "South Africa", "Poland", "Portugal"];
+    const MID_COUNTRIES = [
+      "Turkey",
+      "Thailand",
+      "Malaysia",
+      "China",
+      "Mexico",
+      "Brazil",
+      "South Africa",
+      "Poland",
+      "Portugal",
+    ];
 
-    // Visa rule helpers
-    const SCHENGEN = ["france","germany","italy","spain","portugal","netherlands","belgium","sweden","norway","finland","switzerland","austria","greece","denmark","iceland","czech republic","poland","hungary","luxembourg","malta"];
-    const TURKEY_VISA_FREE = ["united states","united kingdom","germany","france","japan","canada","australia"];
+    const SCHENGEN = [
+      "france",
+      "germany",
+      "italy",
+      "spain",
+      "portugal",
+      "netherlands",
+      "belgium",
+      "sweden",
+      "norway",
+      "finland",
+      "switzerland",
+      "austria",
+      "greece",
+      "denmark",
+      "iceland",
+      "czech republic",
+      "poland",
+      "hungary",
+      "luxembourg",
+      "malta",
+    ];
+    const TURKEY_VISA_FREE = [
+      "united states",
+      "united kingdom",
+      "germany",
+      "france",
+      "japan",
+      "canada",
+      "australia",
+    ];
 
     const computeVisaFeeForTraveler = (destCountryRaw, traveler) => {
       const dest = (destCountryRaw || "").toLowerCase();
-      const nationalities = (Array.isArray(traveler.nationality) ? traveler.nationality : [traveler.nationality]).map((n) => (n || "").toLowerCase());
-      const residencies = (Array.isArray(traveler.residency) ? traveler.residency : [traveler.residency]).map((r) => (r || "").toLowerCase());
+      const nationalities = (
+        Array.isArray(traveler.nationality)
+          ? traveler.nationality
+          : [traveler.nationality]
+      ).map((n) => (n || "").toLowerCase());
+      const residencies = (
+        Array.isArray(traveler.residency)
+          ? traveler.residency
+          : [traveler.residency]
+      ).map((r) => (r || "").toLowerCase());
 
       if (nationalities.includes(dest)) return 0;
 
       if (SCHENGEN.includes(dest)) {
-        if (residencies.some((r) => r.includes("schengen")) || residencies.some((r) => r.includes("eu pr")) || nationalities.some((n) => SCHENGEN.includes(n))) return 0;
+        if (
+          residencies.some((r) => r.includes("schengen")) ||
+          residencies.some((r) => r.includes("eu pr")) ||
+          nationalities.some((n) => SCHENGEN.includes(n))
+        )
+          return 0;
         return 105.62;
       }
 
@@ -278,13 +576,27 @@ export default function TravelPlanner() {
         return 50;
       }
 
-      if (dest === "united states" || dest === "usa" || dest === "united states of america" || dest.includes("hawaii")) {
-        if (nationalities.includes("united states") || residencies.some((r) => r.includes("green card"))) return 0;
+      if (
+        dest === "united states" ||
+        dest === "usa" ||
+        dest === "united states of america" ||
+        dest.includes("hawaii")
+      ) {
+        if (
+          nationalities.includes("united states") ||
+          residencies.some((r) => r.includes("green card"))
+        )
+          return 0;
         return 160;
       }
 
       if (dest === "japan" || dest === "canada") {
-        if (nationalities.includes("united states") || nationalities.includes("canada") || nationalities.includes("japan")) return 0;
+        if (
+          nationalities.includes("united states") ||
+          nationalities.includes("canada") ||
+          nationalities.includes("japan")
+        )
+          return 0;
         return 0;
       }
 
@@ -298,15 +610,44 @@ export default function TravelPlanner() {
       if (city.includes("new york")) return COST_TIERS.expensive;
       if (city.includes("tokyo")) return COST_TIERS.expensive;
       if (city.includes("singapore")) return COST_TIERS.expensive;
-      if (city.includes("paris") || city.includes("rome") || city.includes("milan") || city.includes("madrid") || city.includes("barcelona")) return COST_TIERS.expensive;
-      if (city.includes("london") || city.includes("zurich") || city.includes("geneva")) return COST_TIERS.expensive;
+      if (
+        city.includes("paris") ||
+        city.includes("rome") ||
+        city.includes("milan") ||
+        city.includes("madrid") ||
+        city.includes("barcelona")
+      )
+        return COST_TIERS.expensive;
+      if (
+        city.includes("london") ||
+        city.includes("zurich") ||
+        city.includes("geneva")
+      )
+        return COST_TIERS.expensive;
 
-      if (city.includes("istanbul") || city.includes("bangkok") || city.includes("kuala") || city.includes("dubai")) return COST_TIERS.mid;
+      if (
+        city.includes("istanbul") ||
+        city.includes("bangkok") ||
+        city.includes("kuala") ||
+        city.includes("dubai")
+      )
+        return COST_TIERS.mid;
 
-      if (city.includes("delhi") || city.includes("mumbai") || city.includes("bangalore") || city.includes("jakarta") || city.includes("manila")) return COST_TIERS.cheap;
+      if (
+        city.includes("delhi") ||
+        city.includes("mumbai") ||
+        city.includes("bangalore") ||
+        city.includes("jakarta") ||
+        city.includes("manila")
+      )
+        return COST_TIERS.cheap;
 
-      if (EXPENSIVE_COUNTRIES.map((x) => x.toLowerCase()).includes(country)) return COST_TIERS.expensive;
-      if (MID_COUNTRIES.map((x) => x.toLowerCase()).includes(country)) return COST_TIERS.mid;
+      if (
+        EXPENSIVE_COUNTRIES.map((x) => x.toLowerCase()).includes(country)
+      )
+        return COST_TIERS.expensive;
+      if (MID_COUNTRIES.map((x) => x.toLowerCase()).includes(country))
+        return COST_TIERS.mid;
       return COST_TIERS.cheap;
     };
 
@@ -320,52 +661,81 @@ export default function TravelPlanner() {
       };
 
       const destCountry = extractCountry(d.value);
-      const visaFee = (visaRes && visaRes[i]) || form.travelers.reduce((sum, t) => sum + computeVisaFeeForTraveler(destCountry, t), 0);
-      const flightCost = Number(flightsRes?.[i]?.price ?? flightsRes?.[i]?.cost ?? (form.origin ? 450 : 500));
+      const visaFee =
+        (visaRes && visaRes[i]) ||
+        form.travelers.reduce(
+          (sum, t) => sum + computeVisaFeeForTraveler(destCountry, t),
+          0
+        );
+      const flightCost = Number(
+        flightsRes?.[i]?.price ??
+          flightsRes?.[i]?.cost ??
+          (form.origin ? 450 : 500)
+      );
 
       const tripDaily =
-        (Number(breakdown?.lodging || 0) + Number(breakdown?.food || 0) + Number(breakdown?.transport || 0) + Number(breakdown?.misc || 0)) * days;
-      const total = Math.round(flightCost + tripDaily + Number(visaFee || 0));
+        (Number(breakdown.lodging || 0) +
+          Number(breakdown.food || 0) +
+          Number(breakdown.transport || 0) +
+          Number(breakdown.misc || 0)) *
+        days;
+      const total = Math.round(
+        flightCost + tripDaily + Number(visaFee || 0)
+      );
 
-      return { destination: d.value, breakdown, visaFee: Number(visaFee || 0), flightCost, total };
+      return {
+        destination: d.value,
+        breakdown,
+        visaFee: Number(visaFee || 0),
+        flightCost,
+        total,
+      };
     });
 
-    const sorted = [...built].sort((a, b) => a.total - b.total);
-    const insightList = sorted.slice(1).map((x) => `Swap ${x.destination} for ${sorted[0]?.destination} to save ${formatCurrency(x.total - sorted[0]?.total)}`);
+    const insights = generateDetailedInsights(built, days);
 
-    console.assert(!built.some((x) => typeof x.total !== "number" || isNaN(x.total)), "TEST FAILED: totals must be valid numbers");
-    console.assert(!built.some((x) => !x.breakdown), "TEST FAILED: breakdown must always exist");
-
-    setAiInsights(insightList);
+    setAiInsights(insights);
     setResults(built);
     setLoading(false);
+    setTimeout(() => setShowInsights(true), 300);
   };
 
   return (
     <Page>
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0.5rem' }}>
-        <TopHeader title="Trips Genie - AI" subtitle="Destination total cost estimator. Turn your travel wishes into budget-smart itineraries." />
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0.5rem" }}>
+        <TopHeader
+          title="Trips Genie - AI"
+          subtitle="Destination total cost estimator. Turn your travel wishes into budget-smart itineraries."
+        />
 
         <GlassCard>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold block mb-1">Start Date</label>
+                <label className="text-xs font-semibold block mb-1">
+                  Start Date
+                </label>
                 <input
                   type="date"
                   value={form.startDate}
-                  onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, startDate: e.target.value }))
+                  }
                   className="w-full p-2 border rounded-lg text-sm"
                   required
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold block mb-1">End Date</label>
+                <label className="text-xs font-semibold block mb-1">
+                  End Date
+                </label>
                 <input
                   type="date"
                   value={form.endDate}
-                  onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endDate: e.target.value }))
+                  }
                   className="w-full p-2 border rounded-lg text-sm"
                   required
                 />
@@ -373,231 +743,245 @@ export default function TravelPlanner() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold block mb-1">Flight Origin (optional)</label>
+              <label className="text-xs font-semibold block mb-1">
+                Flight Origin (optional)
+              </label>
               <input
                 placeholder="e.g. JFK, DEL, LHR"
                 value={form.origin}
-                onChange={(e) => setForm((p) => ({ ...p, origin: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, origin: e.target.value }))
+                }
                 className="w-full p-2 border rounded-lg text-sm"
               />
             </div>
 
             <div>
-  <label className="text-xs font-semibold block mb-1">Destinations</label>
-  <AsyncCreatableSelect
-  isMulti
-  defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
-  loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
-  value={form.destinations}
-  onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
-  styles={{
-    control: (base, state) => ({
-      ...base,
-      fontSize: "0.875rem",
-      borderRadius: "0.75rem",
-      backgroundColor: "#ffffff",
-      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
-      boxShadow: state.isFocused
-        ? "0 0 0 2px rgba(251,191,36,0.55)"
-        : "none",
-    }),
-    menu: (base) => ({
-      ...base,
-      fontSize: "0.875rem",
-      backgroundColor: "#0f172a",  // dark menu to contrast the light card
-      color: "#f9fafb",
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isFocused
-        ? "rgba(251,191,36,0.25)"
-        : "transparent",
-      color: "#f9fafb",
-    }),
-    multiValue: (base) => ({
-      ...base,
-      backgroundColor: "rgba(37,99,235,0.1)",
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: "#1f2937",
-      fontWeight: 500,
-    }),
-  }}
-/>
-
-</div>
-
+              <label className="text-xs font-semibold block mb-1">
+                Destinations
+              </label>
+              <AsyncCreatableSelect
+                isMulti
+                defaultOptions={FALLBACK_CITIES.map((x) => ({
+                  label: x,
+                  value: x,
+                }))}
+                loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
+                value={form.destinations}
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, destinations: v || [] }))
+                }
+                styles={{
+                  control: (base, state) => ({
+                    ...base,
+                    fontSize: "0.875rem",
+                    borderRadius: "0.75rem",
+                    backgroundColor: "#ffffff",
+                    borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
+                    boxShadow: state.isFocused
+                      ? "0 0 0 2px rgba(251,191,36,0.55)"
+                      : "none",
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    fontSize: "0.875rem",
+                    backgroundColor: "#0f172a",
+                    color: "#f9fafb",
+                  }),
+                  option: (base, state) => ({
+                    ...base,
+                    backgroundColor: state.isFocused
+                      ? "rgba(251,191,36,0.25)"
+                      : "transparent",
+                    color: "#f9fafb",
+                  }),
+                  multiValue: (base) => ({
+                    ...base,
+                    backgroundColor: "rgba(37,99,235,0.1)",
+                  }),
+                  multiValueLabel: (base) => ({
+                    ...base,
+                    color: "#1f2937",
+                    fontWeight: 500,
+                  }),
+                }}
+              />
+            </div>
 
             {form.travelers.map((t, i) => (
-              <div key={i} className="w-full rounded-xl border text-sm font-medium
-           bg-white/95 border-slate-300 text-slate-900
-           px-3 py-2.5 shadow-sm
-           focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400
-           placeholder:text-slate-400">
+              <div
+                key={i}
+                className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-white bg-opacity-40 rounded-lg"
+              >
                 <div>
-                  <label className="text-xs font-semibold block mb-1">Name</label>
-                  <input value={t.name} onChange={(e) => updateTraveler(i, "name", e.target.value)} className="w-full rounded-xl border text-sm font-medium
-           bg-slate-950/70 border-fuchsia-500/70 text-fuchsia-50
-           px-3 py-2.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]
-           focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300
-           placeholder:text-slate-400" />
+                  <label className="text-xs font-semibold block mb-1">
+                    Name
+                  </label>
+                  <input
+                    value={t.name}
+                    onChange={(e) =>
+                      updateTraveler(i, "name", e.target.value)
+                    }
+                    className="w-full p-1.5 border rounded text-sm"
+                  />
                 </div>
 
                 <div>
-  <label className="text-xs font-semibold block mb-1">Citizenship</label>
-  <AsyncCreatableSelect
-  isMulti
-  defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
-  loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-  value={
-    Array.isArray(t.nationality)
-      ? t.nationality.map((n) => ({ label: n, value: n }))
-      : []
-  }
-  onChange={(o) =>
-    updateTraveler(
-      i,
-      "nationality",
-      o ? o.map((x) => x.value) : []
-    )
-  }
-  styles={{
-    control: (base, state) => ({
-      ...base,
-      fontSize: "0.75rem",
-      borderRadius: "0.75rem",
-      backgroundColor: "#ffffff",
-      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
-      boxShadow: state.isFocused
-        ? "0 0 0 2px rgba(251,191,36,0.55)"
-        : "none",
-      minHeight: "32px",
-    }),
-    menu: (base) => ({
-      ...base,
-      fontSize: "0.75rem",
-      backgroundColor: "#0f172a",
-      color: "#f9fafb",
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isFocused
-        ? "rgba(251,191,36,0.25)"
-        : "transparent",
-      color: "#f9fafb",
-    }),
-    multiValue: (base) => ({
-      ...base,
-      backgroundColor: "rgba(37,99,235,0.1)",
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: "#1f2937",
-      fontWeight: 500,
-    }),
-  }}
-/>
-
-</div>
-
+                  <label className="text-xs font-semibold block mb-1">
+                    Citizenship
+                  </label>
+                  <AsyncCreatableSelect
+                    isMulti
+                    defaultOptions={NATIONALITY_LIST.map((n) => ({
+                      label: n,
+                      value: n,
+                    }))}
+                    loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
+                    value={
+                      Array.isArray(t.nationality)
+                        ? t.nationality.map((n) => ({
+                            label: n,
+                            value: n,
+                          }))
+                        : []
+                    }
+                    onChange={(o) =>
+                      updateTraveler(
+                        i,
+                        "nationality",
+                        o ? o.map((x) => x.value) : []
+                      )
+                    }
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        minHeight: "32px",
+                        fontSize: "0.75rem",
+                      }),
+                      menu: (base) => ({
+                        ...base,
+                        fontSize: "0.75rem",
+                      }),
+                    }}
+                  />
+                </div>
 
                 <div>
-  <label className="text-xs font-semibold block mb-1">Visa / Residency</label>
-  <AsyncCreatableSelect
-  isMulti
-  defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
-  loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-  value={
-    Array.isArray(t.residency)
-      ? t.residency.map((n) => ({ label: n, value: n }))
-      : []
-  }
-  onChange={(o) =>
-    updateTraveler(
-      i,
-      "residency",
-      o ? o.map((x) => x.value) : []
-    )
-  }
-  styles={{
-    control: (base, state) => ({
-      ...base,
-      fontSize: "0.75rem",
-      borderRadius: "0.75rem",
-      backgroundColor: "#ffffff",
-      borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
-      boxShadow: state.isFocused
-        ? "0 0 0 2px rgba(251,191,36,0.55)"
-        : "none",
-      minHeight: "32px",
-    }),
-    menu: (base) => ({
-      ...base,
-      fontSize: "0.75rem",
-      backgroundColor: "#0f172a",
-      color: "#f9fafb",
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isFocused
-        ? "rgba(56,189,248,0.25)"
-        : "transparent",
-      color: "#f9fafb",
-    }),
-    multiValue: (base) => ({
-      ...base,
-      backgroundColor: "rgba(56,189,248,0.15)",
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: "#0f172a",
-      fontWeight: 500,
-    }),
-  }}
-/>
-
-</div>
+                  <label className="text-xs font-semibold block mb-1">
+                    Visa / Residency
+                  </label>
+                  <AsyncCreatableSelect
+                    isMulti
+                    defaultOptions={RESIDENCY_LIST.map((r) => ({
+                      label: r,
+                      value: r,
+                    }))}
+                    loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
+                    value={
+                      Array.isArray(t.residency)
+                        ? t.residency.map((n) => ({
+                            label: n,
+                            value: n,
+                          }))
+                        : []
+                    }
+                    onChange={(o) =>
+                      updateTraveler(
+                        i,
+                        "residency",
+                        o ? o.map((x) => x.value) : []
+                      )
+                    }
+                    styles={{
+                      control: (base) => ({
+                        ...base,
+                        minHeight: "32px",
+                        fontSize: "0.75rem",
+                      }),
+                      menu: (base) => ({
+                        ...base,
+                        fontSize: "0.75rem",
+                      }),
+                    }}
+                  />
+                </div>
 
                 <div>
-                  <label className="text-xs font-semibold block mb-1">Age</label>
-                  <input type="number" value={t.age} onChange={(e) => updateTraveler(i, "age", e.target.value)} className="w-full rounded-xl border text-sm font-medium
-           bg-slate-950/70 border-fuchsia-500/70 text-fuchsia-50
-           px-3 py-2.5 shadow-[0_0_0_1px_rgba(15,23,42,0.9)]
-           focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300
-           placeholder:text-slate-400" />
+                  <label className="text-xs font-semibold block mb-1">
+                    Age
+                  </label>
+                  <input
+                    type="number"
+                    value={t.age}
+                    onChange={(e) =>
+                      updateTraveler(i, "age", e.target.value)
+                    }
+                    className="w-full p-1.5 border rounded text-sm"
+                  />
                 </div>
               </div>
             ))}
 
             <div className="flex gap-2">
-              <button type="button" onClick={addTraveler} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium">+ Add Traveler</button>
+              <button
+                type="button"
+                onClick={addTraveler}
+                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium"
+              >
+                + Add Traveler
+              </button>
               <CTAButton
-  type="submit"
-  className="bg-gradient-to-r from-amber-300 via-fuchsia-400 to-sky-400
-             text-slate-950 text-sm font-extrabold tracking-wide
-             shadow-lg shadow-fuchsia-900/60
-             hover:brightness-110 hover:shadow-xl
-             transition transform hover:-translate-y-0.5"
->
-  {loading ? "Analyzing..." : "FIND BEST TRIPS"}
-</CTAButton>
+                type="submit"
+                className="bg-gradient-to-r from-amber-300 via-fuchsia-400 to-sky-400
+                  text-slate-950 text-sm font-extrabold tracking-wide
+                  shadow-lg shadow-fuchsia-900/60
+                  hover:brightness-110 hover:shadow-xl
+                  transition transform hover:-translate-y-0.5 flex-1"
+              >
+                {loading ? "Analyzing..." : "FIND BEST TRIPS"}
+              </CTAButton>
             </div>
           </form>
         </GlassCard>
 
-        {aiInsights.length > 0 && (
+        {showInsights && aiInsights.length > 0 && (
           <GlassCard>
-            <h3 className="font-bold text-sm mb-2">💡 AI Insights</h3>
-            <ul className="list-disc pl-5 text-xs space-y-1">{aiInsights.map((x, i) => (
-              <li key={i}>{x}</li>
-            ))}</ul>
+            <div
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1))",
+                borderRadius: "0.75rem",
+                padding: "1rem",
+                border: "1px solid rgba(139, 92, 246, 0.2)",
+              }}
+            >
+              <h3 className="font-bold text-base mb-3 flex items-center gap-2">
+                <span>🤖</span>
+                <span>AI Travel Insights</span>
+              </h3>
+              <div className="space-y-3">
+                {aiInsights.map((insight, i) => (
+                  <div
+                    key={i}
+                    className="text-sm leading-relaxed"
+                    style={{
+                      padding: "0.75rem",
+                      background: "rgba(255, 255, 255, 0.5)",
+                      borderRadius: "0.5rem",
+                      borderLeft: "3px solid rgba(139, 92, 246, 0.6)",
+                    }}
+                  >
+                    <TypingText text={insight} speed={20} />
+                  </div>
+                ))}
+              </div>
+            </div>
           </GlassCard>
         )}
 
         {results.length > 0 && (
           <GlassCard>
-            <div style={{ overflowX: 'auto' }}>
+            <div style={{ overflowX: "auto" }}>
               <table className="w-full border text-xs">
                 <thead className="bg-slate-100 bg-opacity-80">
                   <tr>
@@ -616,16 +1000,34 @@ export default function TravelPlanner() {
                   {results.map((r, i) => (
                     <tr key={i} className="border-t">
                       <td className="p-1.5">{r.destination}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.flightCost)}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.breakdown?.lodging || 0)}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.breakdown?.food || 0)}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.breakdown?.transport || 0)}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.breakdown?.misc || 0)}</td>
-                      <td className="p-1.5 text-right">{formatCurrency(r.visaFee)}</td>
-                      <td className="p-1.5 text-right font-bold">{formatCurrency(r.total)}</td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.flightCost)}
+                      </td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.breakdown?.lodging || 0)}
+                      </td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.breakdown?.food || 0)}
+                      </td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.breakdown?.transport || 0)}
+                      </td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.breakdown?.misc || 0)}
+                      </td>
+                      <td className="p-1.5 text-right">
+                        {formatCurrency(r.visaFee)}
+                      </td>
+                      <td className="p-1.5 text-right font-bold">
+                        {formatCurrency(r.total)}
+                      </td>
                       <td className="p-1.5 text-center">
                         <a
-                          href={`https://www.kayak.com/flights/${form.origin || "NYC"}/${encodeURIComponent(r.destination.split(",")[0])}/${form.startDate}/${form.endDate}?affiliate=tripsgenie`}
+                          href={`https://www.kayak.com/flights/${
+                            form.origin || "NYC"
+                          }/${encodeURIComponent(
+                            r.destination.split(",")[0]
+                          )}/${form.startDate}/${form.endDate}?affiliate=tripsgenie`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-indigo-600 font-semibold text-xs"
