@@ -740,6 +740,7 @@ export default function TravelPlanner() {
     />
   </div>
 </div>
+
 </div>
 
 
@@ -815,7 +816,7 @@ export default function TravelPlanner() {
                 key={i}
                 className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-white bg-opacity-40 rounded-lg"
               >
-                <div>
+                {/*<div>
                   <label className="text-xs font-semibold block mb-1">
                     Name
                   </label>
@@ -826,7 +827,7 @@ export default function TravelPlanner() {
                     }
                     className="w-full p-1.5 border rounded text-sm"
                   />
-                </div>
+                </div>*/}
 
                 <div>
                   <label className="text-xs font-semibold block mb-1">
