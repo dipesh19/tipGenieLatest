@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import AsyncCreatableSelect from "react-select/async-creatable";
 
+
 /**
  * TravelPlanner.jsx — with enhanced AI insights and typing animation
  */
@@ -61,12 +62,11 @@ const Page = ({ children }) => (
   >
     {/* Background image */}
     <div
+className="min-h-screen w-full bg-cover bg-center bg-no-repeat"
       style={{
         position: "fixed",
         inset: 0,
-        backgroundImage: "url(/TripGirl.jpeg)",
-        backgroundSize: "260px auto",
-        backgroundRepeat: "repeat",
+        backgroundImage: "url(/SeaMtn.jpeg)",
         backgroundPosition: "center",
         opacity: 1,
         filter: "brightness(1.1) contrast(1.5)",
@@ -165,11 +165,40 @@ const GlassCard = ({ children }) => (
       padding: "1.25rem",
       boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
       marginBottom: "1rem",
+      display: "flex",
+      gap: "1.25rem",
+      alignItems: "flex-start",
     }}
   >
-    {children}
+    <div style={{ flex: 1 }}>{children}</div>
+
+    {/* tiny passport-style photo */}
+    <div
+      style={{
+        width: "150px",   // ~1.6rem
+        height: "224px",  // ~2.0rem, portrait
+        border: "1px solid #94a3b8",
+        borderRadius: "3px",
+        overflow: "hidden",
+        background: "#fff",
+        flexShrink: 0,
+      }}
+    >
+      <img
+        src="/TripGirl2.jpeg"
+        alt="Traveler illustration"
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      />
+    </div>
   </div>
 );
+
+
 
 const CTAButton = ({ children, className = "", ...props }) => (
   <button {...props} className={`px-6 py-3 rounded-xl font-bold ${className}`}>
@@ -424,27 +453,15 @@ export default function TravelPlanner() {
   };
 
   const handleSubmit = async (e) => {
-    e?.preventDefault();
-    setLoading(true);
-    setShowInsights(false);
+  e?.preventDefault();
+  setLoading(true);
+  setShowInsights(false);
 
-    const days = Math.max(
-      1,
-      Math.round(
-        (new Date(form.endDate) - new Date(form.startDate)) /
-          (1000 * 60 * 60 * 24)
-      )
-    );
+  const days = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)));
 
-    let costsRes = [];
-    let flightsRes = [];
-    let visaRes = [];
-
-    try {
-      costsRes = await fetch("/api/costs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+  // Your existing API calls
+  let costsRes = [], flightsRes = [], visaRes = [];
+  try { costsRes = await fetch("/api/costs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
           destinations: form.destinations.map((d) => d.value),
         }),
       })
@@ -692,12 +709,35 @@ export default function TravelPlanner() {
       };
     });
 
-    const insights = generateDetailedInsights(built, days);
+    // ✅ Perplexity AI + fallback
+// ✅ Concise Perplexity AI (replace your try block)
+try {
+  const res = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-sonar-small-128k-online',
+      messages: [{
+        role: 'user', 
+        content: `From ${JSON.stringify(built.slice(0,3))}, pick BEST destination. ONE sentence: "Choose [city] ($X) over [next] - saves $Y on [factor]." Max 80 chars.`
+      }],
+      max_tokens: 100  // Force brevity
+    })
+  });
+  const data = await res.json();
+  setAiInsights([data.choices[0].message.content]);
+} catch {
+  setAiInsights(generateDetailedInsights(built, days));
+}
 
-    setAiInsights(insights);
-    setResults(built);
-    setLoading(false);
-    setTimeout(() => setShowInsights(true), 300);
+
+setResults(built);
+setLoading(false);
+setTimeout(() => setShowInsights(true), 300);
+
   };
 
   return (
