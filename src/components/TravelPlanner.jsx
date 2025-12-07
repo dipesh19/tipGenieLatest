@@ -212,16 +212,27 @@ const CTAButton = ({ children, className = "", ...props }) => (
 /* ---------------- static data ---------------- */
 const FALLBACK_CITIES = [
   "Paris, France",
+  "London, United Kingdom",
   "Rome, Italy",
+  "Barcelona, Spain",
+  "Amsterdam, Netherlands",
+  "Berlin, Germany",
+  "Lisbon, Portugal",
+  "Istanbul, Turkey",
+  "Dubai, United Arab Emirates",
+  "Bangkok, Thailand",
+  "Singapore",
   "Tokyo, Japan",
   "New York, USA",
-  "Bangkok, Thailand",
-  "Istanbul, Turkey",
-  "Singapore",
-  "Dubai, United Arab Emirates",
+  "Los Angeles, USA",
   "Toronto, Canada",
-  "Delhi, India",
+  "Sydney, Australia",
+  "Hong Kong, China",
+  "Seoul, South Korea",
+  "Bali, Indonesia",
+  "Cape Town, South Africa",
 ];
+
 
 const NATIONALITY_LIST = [
   "India",
@@ -289,6 +300,15 @@ const selectStyles = {
     fontWeight: 500,
   }),
 };
+
+const hasUKPermanentStatus =
+  residencies.some((r) =>
+    r.includes("settlement") ||
+    r.includes("ilr") ||
+    r.includes("indefinite leave to remain") ||
+    r.includes("permanent residence") ||
+    r.includes("pr")
+  );
 
 
 /* ---------------- main component ---------------- */
@@ -603,61 +623,78 @@ export default function TravelPlanner() {
     ];
 
     const computeVisaFeeForTraveler = (destCountryRaw, traveler) => {
-      const dest = (destCountryRaw || "").toLowerCase();
-      const nationalities = (
-        Array.isArray(traveler.nationality)
-          ? traveler.nationality
-          : [traveler.nationality]
-      ).map((n) => (n || "").toLowerCase());
-      const residencies = (
-        Array.isArray(traveler.residency)
-          ? traveler.residency
-          : [traveler.residency]
-      ).map((r) => (r || "").toLowerCase());
+  const dest = (destCountryRaw || "").toLowerCase();
+  const nationalities = (
+    Array.isArray(traveler.nationality)
+      ? traveler.nationality
+      : [traveler.nationality]
+  ).map((n) => (n || "").toLowerCase());
+  const residencies = (
+    Array.isArray(traveler.residency)
+      ? traveler.residency
+      : [traveler.residency]
+  ).map((r) => (r || "").toLowerCase());
 
-      if (nationalities.includes(dest)) return 0;
+  // Treat ILR / PR / settlement as equivalent UK permanent status
+  const hasUKPermanentStatus = residencies.some((r) =>
+    r.includes("settlement") ||
+    r.includes("ilr") ||
+    r.includes("indefinite leave to remain") ||
+    r.includes("permanent residence") ||
+    r.includes("pr")
+  );
 
-      if (SCHENGEN.includes(dest)) {
-        if (
-          residencies.some((r) => r.includes("schengen")) ||
-          residencies.some((r) => r.includes("eu pr")) ||
-          nationalities.some((n) => SCHENGEN.includes(n))
-        )
-          return 0;
-        return 105.62;
-      }
+  if (nationalities.includes(dest)) return 0;
 
-      if (dest === "turkey" || dest.includes("turkey")) {
-        if (nationalities.some((n) => TURKEY_VISA_FREE.includes(n))) return 0;
-        return 50;
-      }
-
-      if (
-        dest === "united states" ||
-        dest === "usa" ||
-        dest === "united states of america" ||
-        dest.includes("hawaii")
-      ) {
-        if (
-          nationalities.includes("united states") ||
-          residencies.some((r) => r.includes("green card"))
-        )
-          return 0;
-        return 160;
-      }
-
-      if (dest === "japan" || dest === "canada") {
-        if (
-          nationalities.includes("united states") ||
-          nationalities.includes("canada") ||
-          nationalities.includes("japan")
-        )
-          return 0;
-        return 0;
-      }
-
+  if (SCHENGEN.includes(dest)) {
+    if (
+      residencies.some((r) => r.includes("schengen")) ||
+      residencies.some((r) => r.includes("eu pr")) ||
+      nationalities.some((n) => SCHENGEN.includes(n))
+    )
       return 0;
-    };
+    return 105.62;
+  }
+
+  if (dest === "turkey" || dest.includes("turkey")) {
+    if (nationalities.some((n) => TURKEY_VISA_FREE.includes(n))) return 0;
+    return 50;
+  }
+
+  if (
+    dest === "united states" ||
+    dest === "usa" ||
+    dest === "united states of america" ||
+    dest.includes("hawaii")
+  ) {
+    if (
+      nationalities.includes("united states") ||
+      residencies.some((r) => r.includes("green card"))
+    )
+      return 0;
+    return 160;
+  }
+
+  // Example: if you ever add UK-destination-specific logic, you can reuse hasUKPermanentStatus there
+  // if (dest === "united kingdom" || dest.includes("uk")) {
+  //   if (nationalities.includes("united kingdom") || hasUKPermanentStatus)
+  //     return 0;
+  //   return SOME_FEE;
+  // }
+
+  if (dest === "japan" || dest === "canada") {
+    if (
+      nationalities.includes("united states") ||
+      nationalities.includes("canada") ||
+      nationalities.includes("japan")
+    )
+      return 0;
+    return 0;
+  }
+
+  return 0;
+};
+
 
     const resolveCostTier = (destination) => {
       const city = String(destination || "").toLowerCase();
@@ -843,19 +880,21 @@ setTimeout(() => setShowInsights(true), 300);
                 Destinations
               </label>
               <AsyncCreatableSelect
-                isMulti
-                defaultOptions={FALLBACK_CITIES.map((x) => ({
-                  label: x,
-                  value: x,
-                }))}
-                loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
-                value={form.destinations}
-                onChange={(v) =>
-                  setForm((p) => ({ ...p, destinations: v || [] }))
-                }
-                  styles={selectStyles}
+  isMulti
+  defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
+  loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
+  value={form.destinations}
+  onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
+  placeholder="Start typing a city, or add your own like “Oslo, Norway”"
+  formatCreateLabel={(input) => `Add destination: ${input} (City, Country)`}
+  noOptionsMessage={({ inputValue }) =>
+    inputValue
+      ? `No matches. Press Enter to add “${inputValue}” as City, Country.`
+      : "Type a destination or create your own (City, Country)."
+  }
+  styles={selectStyles}
+ />
 
-              />
             </div>
 
             {form.travelers.map((t, i) => (
@@ -881,30 +920,26 @@ setTimeout(() => setShowInsights(true), 300);
                     Citizenship
                   </label>
                   <AsyncCreatableSelect
-                    isMulti
-                    defaultOptions={NATIONALITY_LIST.map((n) => ({
-                      label: n,
-                      value: n,
-                    }))}
-                    loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-                    value={
-                      Array.isArray(t.nationality)
-                        ? t.nationality.map((n) => ({
-                            label: n,
-                            value: n,
-                          }))
-                        : []
-                    }
-                    onChange={(o) =>
-                      updateTraveler(
-                        i,
-                        "nationality",
-                        o ? o.map((x) => x.value) : []
-                      )
-                    }
-                      styles={selectStyles}
-
-                  />
+  isMulti
+  defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
+  loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
+  value={
+    Array.isArray(t.nationality)
+      ? t.nationality.map((n) => ({ label: n, value: n }))
+      : []
+  }
+  onChange={(o) =>
+    updateTraveler(i, "nationality", o ? o.map((x) => x.value) : [])
+  }
+  placeholder="Start typing a passport country (e.g. India, United Kingdom)"
+  formatCreateLabel={(input) => `Add citizenship: ${input}`}
+  noOptionsMessage={({ inputValue }) =>
+    inputValue
+      ? `No match. Press Enter to add “${inputValue}” as a citizenship.`
+      : "Type or add a citizenship (country name)."
+  }
+  styles={selectStyles}
+/>
                 </div>
 
                 <div>
@@ -912,29 +947,26 @@ setTimeout(() => setShowInsights(true), 300);
                     Visa / Residency
                   </label>
                   <AsyncCreatableSelect
-                    isMulti
-                    defaultOptions={RESIDENCY_LIST.map((r) => ({
-                      label: r,
-                      value: r,
-                    }))}
-                    loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-                    value={
-                      Array.isArray(t.residency)
-                        ? t.residency.map((n) => ({
-                            label: n,
-                            value: n,
-                          }))
-                        : []
-                    }
-                    onChange={(o) =>
-                      updateTraveler(
-                        i,
-                        "residency",
-                        o ? o.map((x) => x.value) : []
-                      )
-                    }
-                      styles={selectStyles}
-                  />
+  isMulti
+  defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
+  loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
+  value={
+    Array.isArray(t.residency)
+      ? t.residency.map((n) => ({ label: n, value: n }))
+      : []
+  }
+  onChange={(o) =>
+    updateTraveler(i, "residency", o ? o.map((x) => x.value) : [])
+  }
+  placeholder="e.g. Schengen Visa, UK ILR / PR, US Green Card"
+  formatCreateLabel={(input) => `Add residency/visa: ${input}`}
+  noOptionsMessage={({ inputValue }) =>
+    inputValue
+      ? `No match. Add your exact status, e.g. “${inputValue} (ILR / PR / visa type)”.`
+      : "Type or add any visa or residency status (PR, ILR, long-term visa, etc.)."
+  }
+  styles={selectStyles}
+/>
                 </div>
 
                 {/*<div>
