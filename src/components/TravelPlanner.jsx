@@ -159,8 +159,8 @@ const TopHeader = ({ title, subtitle }) => (
 const GlassCard = ({ children }) => (
   <div
     style={{
-      background: "rgba(255, 255, 255, 0.92)",
-      border: "1px solid rgba(15,23,42,0.12)",
+      background: "rgba(15, 23, 42, 0.14)",          // very transparent dark tint
+      border: "1px solid rgba(255,255,255,0.25)",
       borderRadius: "1.25rem",
       padding: "1.25rem",
       boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
@@ -168,15 +168,17 @@ const GlassCard = ({ children }) => (
       display: "flex",
       gap: "1.25rem",
       alignItems: "flex-start",
+      backdropFilter: "blur(18px)",
+      WebkitBackdropFilter: "blur(18px)",
+      color: "#f9fafb",                              // default text color inside card
     }}
   >
     <div style={{ flex: 1 }}>{children}</div>
 
-    {/* tiny passport-style photo */}
     <div
       style={{
-        width: "150px",   // ~1.6rem
-        height: "224px",  // ~2.0rem, portrait
+        width: "150px",
+        height: "224px",
         border: "1px solid #94a3b8",
         borderRadius: "3px",
         overflow: "hidden",
@@ -197,6 +199,7 @@ const GlassCard = ({ children }) => (
     </div>
   </div>
 );
+
 
 
 
