@@ -255,6 +255,42 @@ const loadSimpleOptions = (list) => async (input) => {
     .map((x) => ({ label: x, value: x }));
 };
 
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    fontSize: "0.875rem",
+    borderRadius: "0.75rem",
+    backgroundColor: "#ffffff",
+    borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
+    boxShadow: state.isFocused
+      ? "0 0 0 2px rgba(251,191,36,0.55)"
+      : "none",
+  }),
+  menu: (base) => ({
+    ...base,
+    fontSize: "0.875rem",
+    backgroundColor: "#0f172a",
+    color: "#f9fafb",
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isFocused
+      ? "rgba(251,191,36,0.25)"
+      : "transparent",
+    color: "#f9fafb",
+  }),
+  multiValue: (base) => ({
+    ...base,
+    backgroundColor: "rgba(37,99,235,0.1)",
+  }),
+  multiValueLabel: (base) => ({
+    ...base,
+    color: "#1f2937",
+    fontWeight: 500,
+  }),
+};
+
+
 /* ---------------- main component ---------------- */
 export default function TravelPlanner() {
   const [form, setForm] = useState({
@@ -817,40 +853,8 @@ setTimeout(() => setShowInsights(true), 300);
                 onChange={(v) =>
                   setForm((p) => ({ ...p, destinations: v || [] }))
                 }
-                styles={{
-                  control: (base, state) => ({
-                    ...base,
-                    fontSize: "0.875rem",
-                    borderRadius: "0.75rem",
-                    backgroundColor: "#ffffff",
-                    borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
-                    boxShadow: state.isFocused
-                      ? "0 0 0 2px rgba(251,191,36,0.55)"
-                      : "none",
-                  }),
-                  menu: (base) => ({
-                    ...base,
-                    fontSize: "0.875rem",
-                    backgroundColor: "#0f172a",
-                    color: "#f9fafb",
-                  }),
-                  option: (base, state) => ({
-                    ...base,
-                    backgroundColor: state.isFocused
-                      ? "rgba(251,191,36,0.25)"
-                      : "transparent",
-                    color: "#f9fafb",
-                  }),
-                  multiValue: (base) => ({
-                    ...base,
-                    backgroundColor: "rgba(37,99,235,0.1)",
-                  }),
-                  multiValueLabel: (base) => ({
-                    ...base,
-                    color: "#1f2937",
-                    fontWeight: 500,
-                  }),
-                }}
+                  styles={selectStyles}
+
               />
             </div>
 
@@ -898,17 +902,8 @@ setTimeout(() => setShowInsights(true), 300);
                         o ? o.map((x) => x.value) : []
                       )
                     }
-                    styles={{
-                      control: (base) => ({
-                        ...base,
-                        minHeight: "32px",
-                        fontSize: "0.75rem",
-                      }),
-                      menu: (base) => ({
-                        ...base,
-                        fontSize: "0.75rem",
-                      }),
-                    }}
+                      styles={selectStyles}
+
                   />
                 </div>
 
@@ -938,17 +933,7 @@ setTimeout(() => setShowInsights(true), 300);
                         o ? o.map((x) => x.value) : []
                       )
                     }
-                    styles={{
-                      control: (base) => ({
-                        ...base,
-                        minHeight: "32px",
-                        fontSize: "0.75rem",
-                      }),
-                      menu: (base) => ({
-                        ...base,
-                        fontSize: "0.75rem",
-                      }),
-                    }}
+                      styles={selectStyles}
                   />
                 </div>
 
