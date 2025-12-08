@@ -301,14 +301,13 @@ const selectStyles = {
   }),
 };
 
-const hasUKPermanentStatus =
-  residencies.some((r) =>
-    r.includes("settlement") ||
-    r.includes("ilr") ||
-    r.includes("indefinite leave to remain") ||
-    r.includes("permanent residence") ||
-    r.includes("pr")
+const hasUKPermanentStatus = (residencies) => {
+  return (Array.isArray(residencies) ? residencies : []).some(r =>
+    r.includes("settlement") || r.includes("ilr") || 
+    r.includes("indefinite leave to remain") || 
+    r.includes("permanent residence") || r.includes("pr")
   );
+};
 
 
 /* ---------------- main component ---------------- */
@@ -511,6 +510,24 @@ export default function TravelPlanner() {
     return insights;
   };
 
+const computeVisaFee = (destination, travelers) => {
+  const destCountry = extractCountry(destination).toLowerCase();
+  let total = 0;
+  
+  travelers.forEach(traveler => {
+    const nationality = Array.isArray(traveler.nationality) ? traveler.nationality[0]?.toLowerCase() : '';
+    
+    if (nationality === 'india') {
+      if (destCountry.includes('usa') || destCountry.includes('united states')) total += 185;
+      if (destCountry.includes('united kingdom') || destCountry.includes('uk')) total += 115;
+      if (['france','germany','italy','spain'].some(c => destCountry.includes(c))) total += 80;
+    }
+  });
+  
+  return total;
+};
+
+
   const handleSubmit = async (e) => {
   e?.preventDefault();
   setLoading(true);
@@ -636,7 +653,7 @@ export default function TravelPlanner() {
   ).map((r) => (r || "").toLowerCase());
 
   // Treat ILR / PR / settlement as equivalent UK permanent status
-  const hasUKPermanentStatus = residencies.some((r) =>
+  const hasUKPermanentStatus = (form.travelers[0]?.residency || []).some((r) =>
     r.includes("settlement") ||
     r.includes("ilr") ||
     r.includes("indefinite leave to remain") ||
