@@ -20,14 +20,7 @@ const TravelerFields = ({ form, addTraveler, updateTraveler }) => (
         key={i}
         className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-white bg-opacity-40 rounded-lg"
       >
-        <div>
-          <label className="text-xs font-semibold block mb-1">Name</label>
-          <input
-            value={t.name}
-            onChange={(e) => updateTraveler(i, "name", e.target.value)}
-            className="w-full p-1.5 border rounded text-sm"
-          />
-        </div>
+        
         <div>
           <label className="text-xs font-semibold block mb-1">Citizenship</label>
           <AsyncCreatableSelect
@@ -92,24 +85,9 @@ const TravelerFields = ({ form, addTraveler, updateTraveler }) => (
             styles={SELECT_STYLES}
           />
         </div>
-        <div>
-          <label className="text-xs font-semibold block mb-1">Age</label>
-          <input
-            type="number"
-            value={t.age}
-            onChange={(e) => updateTraveler(i, "age", e.target.value)}
-            className="w-full p-1.5 border rounded text-sm"
-          />
-        </div>
+        
       </div>
     ))}
-    <button
-      type="button"
-      onClick={addTraveler}
-      className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium"
-    >
-      ➕ Add Traveler
-    </button>
   </>
 );
 

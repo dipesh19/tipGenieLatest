@@ -1,11 +1,14 @@
 import React, { useState } from "react";
+
 import Page from "./UI/Page";
 import TopHeader from "./UI/TopHeader";
 import GlassCard from "./UI/GlassCard";
 import CTAButton from "./UI/CTAButton";
+
 import DateFields from "./Form/DateFields";
 import DestinationSelect from "./Form/DestinationSelect";
 import TravelerFields from "./Form/TravelerFields";
+
 import AIInsights from "./Results/AIInsights";
 import ResultsTable from "./Results/ResultsTable";
 
@@ -21,8 +24,10 @@ export default function TravelPlanner() {
     destinations: [],
     travelers: [{ name: "", nationality: [], residency: [], age: "" }],
   });
+
   const [results, setResults] = useState([]);
   const [aiInsights, setAiInsights] = useState([]);
+  const [aiItineraries, setAiItineraries] = useState({});
   const [showInsights, setShowInsights] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedItineraryDest, setSelectedItineraryDest] = useState(null);
@@ -43,93 +48,74 @@ export default function TravelPlanner() {
       return { ...p, travelers: t };
     });
 
-  const generateSummaryInsight = (resultsArr, days) => {
-    if (!resultsArr || resultsArr.length === 0) return [];
-
-    const sorted = [...resultsArr].sort((a, b) => a.total - b.total);
-    const cheapest = sorted[0];
-    const second = sorted[1];
-
-    const equalBest = sorted.filter((r) => r.total === cheapest.total);
-    if (equalBest.length > 1) {
-      const names = equalBest.map((r) => r.destination).join(" and ");
-      return [
-        `💡 Best Value: ${names} are equally good options at ${formatCurrency(
-          cheapest.total
-        )} for your ${days}-day trip.`,
-      ];
-    }
-
-    if (second) {
-      const savings = second.total - cheapest.total;
-      const parts = [];
-
-      const flightDiff = second.flightCost - cheapest.flightCost;
-      const lodgingDiff =
-        (second.breakdown.lodging - cheapest.breakdown.lodging) * days;
-      const foodDiff =
-        (second.breakdown.food - cheapest.breakdown.food) * days;
-      const visaDiff = second.visaFee - cheapest.visaFee;
-
-      if (Math.abs(lodgingDiff) > 80)
-        parts.push(
-          `${formatCurrency(Math.abs(lodgingDiff))} on accommodation`
-        );
-      if (Math.abs(foodDiff) > 50)
-        parts.push(`${formatCurrency(Math.abs(foodDiff))} on food`);
-      if (Math.abs(visaDiff) > 0)
-        parts.push(`${formatCurrency(Math.abs(visaDiff))} on visa fees`);
-      if (Math.abs(flightDiff) > 60)
-        parts.push(`${formatCurrency(Math.abs(flightDiff))} on flights`);
-
-      const breakdown = parts.length ? ` (mainly ${parts.join(", ")})` : "";
-      return [
-        `💡 Best Value: ${cheapest.destination} at ${formatCurrency(
-          cheapest.total
-        )} – saves ${formatCurrency(
-          savings
-        )} vs ${second.destination}${breakdown}.`,
-      ];
-    }
-
-    return [
-      `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(
-        cheapest.total
-      )} for your ${days}-day trip.`,
-    ];
-  };
-
-  const buildItinerary = (destination, days) => {
+  const buildFallbackItinerary = (destination, days) => {
     if (!destination || !days || days < 1) return [];
+    const country = extractCountry(destination);
 
     if (days <= 3) {
       return [
-        `Day 1: Arrival in ${destination}, explore the old town and a key viewpoint.`,
-        `Day 2: Main museums/landmarks in the morning, food market + local neighborhood in the evening.`,
-        `Day 3: Half‑day side trip or beach/park time, then farewell dinner in a local area.`,
+        `Day 1: Arrive in ${country}. Focus on one primary city/area to avoid transit fatigue. Explore the historic center and a key viewpoint.`,
+        `Day 2: Deep dive into culture – top museums, local markets, and a neighborhood known for food or nightlife.`,
+        `Day 3: Half‑day nearby nature or coastal escape, then a slow evening in cafés or plazas to soak up local life.`,
       ];
     }
 
     if (days <= 7) {
       return [
-        `Day 1: Arrive in ${destination}, settle in and explore the immediate area.`,
-        `Day 2: Classic city highlights (old town, main square, top 2–3 landmarks).`,
-        `Day 3: Museum / culture day + evening food tour or tapas crawl.`,
-        `Day 4: Day trip or different district (beach / modern area / hills).`,
-        `Day 5: Flexible day for shopping, cafés, and second‑tier sights.`,
-        `Day 6: Nature or coastal escape if available, or a themed day (art, architecture, wine).`,
-        `Day 7: Buffer / free day, revisit favorite spots, farewell dinner.`,
+        `Days 1–2: Start in the main gateway city in ${country}. Cover core highlights, old town, and 2–3 must‑see landmarks.`,
+        `Days 3–4: One secondary region (coastal, wine, mountains, or cultural hub). Minimize hotel changes to 1 move only.`,
+        `Day 5: Flexible day for local markets, food experiences, and second‑tier sights at a relaxed pace.`,
+        `Day 6: Day trip within 1–2 hours to a contrasting area – small town, beach, or countryside.`,
+        `Day 7: Buffer day for weather or energy. Revisit favorite spots, shop, and enjoy a long local-style dinner.`,
       ];
     }
 
     return [
-      `First 2–3 days: Core city highlights, old town, main museums and viewpoints in ${destination}.`,
-      `Middle days: Mix of day trips, neighborhood exploration, and food experiences.`,
-      `Final days: Buffer for weather, slower days in parks or cafés, and revisiting favorites.`,
+      `First 3 days: Base in a major hub in ${country}. Do core city highlights and get oriented without rushing.`,
+      `Next 3–5 days: Two key regions max (e.g. coast + inland, north + south). Spend at least 2 nights per stop to avoid constant packing.`,
+      `Final days: Slow down in your favorite region. Add low‑effort day trips, food tours, and time in parks, beaches, or small towns.`,
+      `Overall strategy: Limit long transfers, cluster sights by area, and keep one or two easy afternoons for serendipitous exploration.`,
     ];
   };
 
+  const callPerplexityForSummaryAndItinerary = async (resultsArr, days) => {
+  if (!resultsArr || resultsArr.length === 0) {
+    return { summary: [], itineraries: {} };
+  }
+
+  const payload = resultsArr
+    .sort((a, b) => a.total - b.total)
+    .slice(0, 3)
+    .map((r) => ({
+      destination: r.destination,
+      country: extractCountry(r.destination),
+      total: r.total,
+      flightCost: r.flightCost,
+      breakdown: r.breakdown,
+      visaFee: r.visaFee,
+    }));
+
+  const res = await fetch("/api/ai-summary", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ results: payload, days }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`AI summary API error: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return {
+    summary: data.summary ? [data.summary] : [],
+    itineraries: data.itineraries || {},
+  };
+};
+
+
   const handleSubmit = async (e) => {
+    // ... rest of your file unchanged ...
+
     e?.preventDefault();
     setLoading(true);
     setShowInsights(false);
@@ -204,12 +190,13 @@ export default function TravelPlanner() {
         misc: Number(apiBreakdown.misc ?? tierFallback.misc),
       };
 
+      const visaFeeFromApi = visaRes?.results?.[i]?.totalVisaFee;
+      const computedVisaFee = form.travelers.reduce(
+        (sum, t) => sum + computeVisaFeeForTraveler(destCountry, t),
+        0
+      );
       const visaFee =
-        visaRes?.results?.[i]?.totalVisaFee ??
-        form.travelers.reduce(
-          (sum, t) => sum + computeVisaFeeForTraveler(destCountry, t),
-          0
-        );
+        visaFeeFromApi != null ? visaFeeFromApi : computedVisaFee;
 
       const flightCost = Number(
         flightsRes?.results?.[i]?.flightCost ??
@@ -241,9 +228,33 @@ export default function TravelPlanner() {
     const sorted = [...built].sort((a, b) => a.total - b.total);
     const cheapest = sorted[0];
 
-    const insights = generateSummaryInsight(sorted, days);
-    setAiInsights(insights);
-    setSelectedItineraryDest(cheapest?.destination || null);
+    try {
+      const ai = await callPerplexityForSummaryAndItinerary(sorted, days);
+
+      if (ai.summary && ai.summary.length) {
+        setAiInsights(ai.summary);
+      } else {
+        setAiInsights([
+          `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(
+            cheapest.total
+          )} for your ${days}-day trip.`,
+        ]);
+      }
+
+      setAiItineraries(ai.itineraries || {});
+      const firstDest =
+        cheapest?.destination || sorted[0]?.destination || null;
+      setSelectedItineraryDest(firstDest);
+    } catch (err) {
+      console.error("AI call failed:", err);
+      setAiInsights([
+        `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(
+          cheapest.total
+        )} for your ${days}-day trip.`,
+      ]);
+      setAiItineraries({});
+      setSelectedItineraryDest(cheapest?.destination || null);
+    }
 
     setTimeout(() => setShowInsights(true), 300);
     setLoading(false);
@@ -287,6 +298,7 @@ export default function TravelPlanner() {
 
             <DestinationSelect form={form} setForm={setForm} />
 
+            {/* TravelerFields with disabled Age and Add Traveler handled inside */}
             <TravelerFields
               form={form}
               addTraveler={addTraveler}
@@ -371,19 +383,22 @@ export default function TravelPlanner() {
                     paddingLeft: "1rem",
                   }}
                 >
-                  {buildItinerary(selectedItineraryDest, days).map(
-                    (line, idx) => (
-                      <li
-                        key={idx}
-                        style={{
-                          marginBottom: "0.25rem",
-                          listStyleType: "disc",
-                        }}
-                      >
-                        {line}
-                      </li>
-                    )
-                  )}
+                  {(aiItineraries[selectedItineraryDest] &&
+                  Array.isArray(aiItineraries[selectedItineraryDest]) &&
+                  aiItineraries[selectedItineraryDest].length
+                    ? aiItineraries[selectedItineraryDest]
+                    : buildFallbackItinerary(selectedItineraryDest, days)
+                  ).map((line, idx) => (
+                    <li
+                      key={idx}
+                      style={{
+                        marginBottom: "0.25rem",
+                        listStyleType: "disc",
+                      }}
+                    >
+                      {line}
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
