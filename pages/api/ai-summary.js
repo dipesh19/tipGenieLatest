@@ -11,28 +11,38 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing results or days" });
     }
 
-    const payload = results
-      .slice(0, 3)
-      .sort((a, b) => a.total - b.total)
-      .map((r) => ({
-        destination: r.destination,
-        country: r.country,
-        total: r.total,
-        flightCost: r.flightCost,
-        breakdown: r.breakdown,
-        visaFee: r.visaFee,
-      }));
+   const payload = results
+  .slice(0, 3)
+  .sort((a, b) => a.total - b.total)
+  .map((r) => ({
+    destination: r.destination,
+    country: r.country,
+    total: r.total,
+    flightCost: r.flightCost,
+    breakdown: r.breakdown,
+    visaFee: r.visaFee,
+  }));
 
-    const prompt = `
+const prompt = `
 You are an expert travel planner.
 
-Destinations:
+Destinations (city, country, costs):
 ${JSON.stringify(payload, null, 2)}
 
 Trip length: ${days} days.
 
-1) Write ONE short cost-saving summary line.
-2) For EACH destination, write 3–6 bullet points for an efficient, country-level itinerary.
+Important: Plan at the COUNTRY level.
+- Treat the city in "destination" only as the main entry point into that country.
+- Focus on how to best use time across regions within the country (coast, mountains, main hub, etc.).
+- Do NOT give street-level or neighborhood-level detail inside a single city.
+- Think in terms of "in Spain", "in France", "in the United States", etc.
+
+1) Task A: Write ONE short cost-saving summary line comparing the destinations.
+
+2) Task B: For EACH destination, output 3–6 bullet points describing an efficient COUNTRY-LEVEL itinerary:
+- Mention 1–3 key regions or cities, but keep the focus on how to allocate days across the country.
+- Emphasize minimizing hotel changes and long transfers.
+- Show how to cluster regions to make the most of the given days.
 
 Respond as valid JSON only:
 {
@@ -42,6 +52,7 @@ Respond as valid JSON only:
   }
 }
 `.trim();
+
 
     const apiRes = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
