@@ -763,12 +763,15 @@ const computeVisaFee = (destination, travelers) => {
 
     const built = (form.destinations || []).map((d, i) => {
       const tierFallback = resolveCostTier(d.value);
-      const breakdown = {
-        lodging: Number(costsRes?.[i]?.lodging ?? tierFallback.lodging),
-        food: Number(costsRes?.[i]?.food ?? tierFallback.food),
-        transport: Number(costsRes?.[i]?.transport ?? tierFallback.transport),
-        misc: Number(costsRes?.[i]?.misc ?? tierFallback.misc),
-      };
+const apiBreakdown = costsRes?.results?.[i]?.breakdown || {};
+
+const breakdown = {
+  lodging: Number(apiBreakdown.lodging ?? tierFallback.lodging),
+  food: Number(apiBreakdown.food ?? tierFallback.food),
+  transport: Number(apiBreakdown.transport ?? tierFallback.transport),
+  misc: Number(apiBreakdown.misc ?? tierFallback.misc),
+};
+
 
       const destCountry = extractCountry(d.value);
       const visaFee =
