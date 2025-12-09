@@ -323,6 +323,8 @@ export default function TravelPlanner() {
   const [aiInsights, setAiInsights] = useState([]);
   const [showInsights, setShowInsights] = useState(false);
   const [loading, setLoading] = useState(false);
+const [selectedItineraryDest, setSelectedItineraryDest] = useState(null);
+
 
   const addTraveler = () =>
     setForm((p) => ({
@@ -341,174 +343,50 @@ export default function TravelPlanner() {
     });
 
   /* --------- AI insights generator --------- */
-  const generateDetailedInsights = (results, days) => {
-    const insights = [];
+  const generateSummaryInsight = (results, days) => {
+  if (!results || results.length === 0) return [];
 
-    if (results.length === 1) {
-      const r = results[0];
-      const dailyCost = Math.round(
-        r.breakdown.lodging +
-          r.breakdown.food +
-          r.breakdown.transport +
-          r.breakdown.misc
-      );
+  // Sort by total cost
+  const sorted = [...results].sort((a, b) => a.total - b.total);
+  const cheapest = sorted[0];
+  const second = sorted[1];
 
-      insights.push(
-        `🎯 Planning a ${days}-day trip to ${r.destination}! Here's your complete breakdown:`
-      );
-      insights.push(
-        `✈️ Flight: ${formatCurrency(
-          r.flightCost
-        )} - Your journey begins here!`
-      );
-      insights.push(
-        `🏨 Accommodation: ${formatCurrency(
-          r.breakdown.lodging
-        )} per day (${formatCurrency(
-          r.breakdown.lodging * days
-        )} total) - Comfortable stays await you.`
-      );
-      insights.push(
-        `🍽️ Food: ${formatCurrency(
-          r.breakdown.food
-        )} per day (${formatCurrency(
-          r.breakdown.food * days
-        )} total) - Savor local cuisine!`
-      );
-      insights.push(
-        `🚕 Local Transport: ${formatCurrency(
-          r.breakdown.transport
-        )} per day (${formatCurrency(
-          r.breakdown.transport * days
-        )} total) - Getting around made easy.`
-      );
-      insights.push(
-        `🎭 Activities & Misc: ${formatCurrency(
-          r.breakdown.misc
-        )} per day (${formatCurrency(
-          r.breakdown.misc * days
-        )} total) - Make memories!`
-      );
+  // If multiple destinations have same total, treat them as equal best options
+  const equalBest = sorted.filter(r => r.total === cheapest.total);
+  if (equalBest.length > 1) {
+    const names = equalBest.map(r => r.destination).join(" and ");
+    return [
+      `💡 Best Value: ${names} are equally good options at ${formatCurrency(cheapest.total)} for your ${days}-day trip.`
+    ];
+  }
 
-      if (r.visaFee > 0) {
-        insights.push(
-          `📋 Visa Fees: ${formatCurrency(
-            r.visaFee
-          )} - Don't forget to apply in advance!`
-        );
-      } else {
-        insights.push(
-          `📋 Great news! No visa fees required for this destination! 🎉`
-        );
-      }
+  // Otherwise, show one-line savings vs next best
+  if (second) {
+    const savings = second.total - cheapest.total;
+    const parts = [];
 
-      insights.push(
-        `💰 Daily Budget: ${formatCurrency(
-          dailyCost
-        )} - Plan your spending wisely.`
-      );
-      insights.push(
-        `🎊 Total Trip Cost: ${formatCurrency(
-          r.total
-        )} - Your adventure awaits!`
-      );
-    } else if (results.length > 1) {
-      const sorted = [...results].sort((a, b) => a.total - b.total);
-      const cheapest = sorted[0];
-      const mostExpensive = sorted[sorted.length - 1];
+    const flightDiff = second.flightCost - cheapest.flightCost;
+    const lodgingDiff = (second.breakdown.lodging - cheapest.breakdown.lodging) * days;
+    const foodDiff = (second.breakdown.food - cheapest.breakdown.food) * days;
+    const visaDiff = (second.visaFee - cheapest.visaFee);
 
-      insights.push(
-        `🔍 Comparing ${results.length} amazing destinations for your ${days}-day adventure!`
-      );
-      insights.push(
-        `💡 Best Value: ${cheapest.destination} at ${formatCurrency(
-          cheapest.total
-        )} - The most budget-friendly option!`
-      );
+    if (Math.abs(lodgingDiff) > 80) parts.push(`${formatCurrency(Math.abs(lodgingDiff))} on accommodation`);
+    if (Math.abs(foodDiff) > 50) parts.push(`${formatCurrency(Math.abs(foodDiff))} on food`);
+    if (Math.abs(visaDiff) > 0) parts.push(`${formatCurrency(Math.abs(visaDiff))} on visa fees`);
+    if (Math.abs(flightDiff) > 60) parts.push(`${formatCurrency(Math.abs(flightDiff))} on flights`);
 
-      for (let i = 1; i < Math.min(3, sorted.length); i++) {
-        const current = sorted[i];
-        const savings = current.total - cheapest.total;
-        const flightDiff = current.flightCost - cheapest.flightCost;
-        const accomDiff =
-          (current.breakdown.lodging - cheapest.breakdown.lodging) * days;
-        const foodDiff =
-          (current.breakdown.food - cheapest.breakdown.food) * days;
-        const visaDiff = current.visaFee - cheapest.visaFee;
+    const breakdown = parts.length ? ` (mainly ${parts.join(", ")})` : "";
+    return [
+      `💡 Best Value: ${cheapest.destination} at ${formatCurrency(cheapest.total)} – saves ${formatCurrency(savings)} vs ${second.destination}${breakdown}.`
+    ];
+  }
 
-        const breakdown = [];
-        if (Math.abs(flightDiff) > 50)
-          breakdown.push(
-            `${formatCurrency(Math.abs(flightDiff))} on flights`
-          );
-        if (Math.abs(accomDiff) > 100)
-          breakdown.push(
-            `${formatCurrency(Math.abs(accomDiff))} on accommodation`
-          );
-        if (Math.abs(foodDiff) > 50)
-          breakdown.push(
-            `${formatCurrency(Math.abs(foodDiff))} on food`
-          );
-        if (Math.abs(visaDiff) > 0)
-          breakdown.push(
-            `${formatCurrency(Math.abs(visaDiff))} on visa fees`
-          );
+  // Only one result
+  return [
+    `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(cheapest.total)} for your ${days}-day trip.`
+  ];
+};
 
-        const breakdownText =
-          breakdown.length > 0
-            ? ` (Save ${breakdown.join(", ")})`
-            : "";
-
-        insights.push(
-          `📊 ${
-            current.destination
-          }: ${formatCurrency(current.total)} - Choose ${
-            cheapest.destination
-          } instead to save ${formatCurrency(savings)}${breakdownText}`
-        );
-      }
-
-      if (sorted.length > 3) {
-        insights.push(
-          `💸 Most Expensive: ${
-            mostExpensive.destination
-          } at ${formatCurrency(
-            mostExpensive.total
-          )} - ${formatCurrency(
-            mostExpensive.total - cheapest.total
-          )} more than ${cheapest.destination}`
-        );
-      }
-
-      const cheapestFlight = sorted.reduce((a, b) =>
-        a.flightCost < b.flightCost ? a : b
-      );
-      const cheapestAccom = sorted.reduce((a, b) =>
-        a.breakdown.lodging < b.breakdown.lodging ? a : b
-      );
-      const cheapestFood = sorted.reduce((a, b) =>
-        a.breakdown.food < b.breakdown.food ? a : b
-      );
-
-      insights.push(
-        `✈️ Cheapest Flights: ${cheapestFlight.destination} (${formatCurrency(
-          cheapestFlight.flightCost
-        )})`
-      );
-      insights.push(
-        `🏨 Best Accommodation Deals: ${
-          cheapestAccom.destination
-        } (${formatCurrency(cheapestAccom.breakdown.lodging)}/day)`
-      );
-      insights.push(
-        `🍽️ Most Affordable Food: ${
-          cheapestFood.destination
-        } (${formatCurrency(cheapestFood.breakdown.food)}/day)`
-      );
-    }
-
-    return insights;
-  };
 
 const computeVisaFee = (destination, travelers) => {
   const destCountry = extractCountry(destination).toLowerCase();
@@ -526,6 +404,7 @@ const computeVisaFee = (destination, travelers) => {
   
   return total;
 };
+
 
 
   const handleSubmit = async (e) => {
@@ -804,30 +683,15 @@ const breakdown = {
         total,
       };
     });
+const sorted = [...built].sort((a, b) => a.total - b.total);
+const cheapest = sorted[0];
 
-    // ✅ Perplexity AI + fallback
-// ✅ Concise Perplexity AI (replace your try block)
-try {
-  const res = await fetch('https://api.perplexity.ai/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: 'llama-3.1-sonar-small-128k-online',
-      messages: [{
-        role: 'user', 
-        content: `From ${JSON.stringify(built.slice(0,3))}, pick BEST destination. ONE sentence: "Choose [city] ($X) over [next] - saves $Y on [factor]." Max 80 chars.`
-      }],
-      max_tokens: 100  // Force brevity
-    })
-  });
-  const data = await res.json();
-  setAiInsights([data.choices[0].message.content]);
-} catch {
-  setAiInsights(generateDetailedInsights(built, days));
-}
+const insights = generateSummaryInsight(sorted, days);
+setAiInsights(insights);
+setSelectedItineraryDest(cheapest?.destination || null);
+
+setTimeout(() => setShowInsights(true), 300);
+setLoading(false);
 
 
 setResults(built);
@@ -1047,22 +911,23 @@ setTimeout(() => setShowInsights(true), 300);
                 <span>🤖</span>
                 <span>AI Travel Insights</span>
               </h3>
-              <div className="space-y-3">
-                {aiInsights.map((insight, i) => (
-                  <div
-                    key={i}
-                    className="text-sm leading-relaxed"
-                    style={{
-                      padding: "0.75rem",
-                      background: "rgba(255, 255, 255, 0.5)",
-                      borderRadius: "0.5rem",
-                      borderLeft: "3px solid rgba(139, 92, 246, 0.6)",
-                    }}
-                  >
-                    <TypingText text={insight} speed={20} />
-                  </div>
-                ))}
-              </div>
+     {aiInsights.map((insight, i) => (
+  <div
+    key={i}
+    className="text-sm leading-relaxed"
+    style={{
+      padding: "0.75rem",
+      background: "rgba(255, 255, 255, 0.85)",
+      borderRadius: "0.5rem",
+      borderLeft: "3px solid rgba(139, 92, 246, 0.6)",
+      color: "#111827", // dark slate
+    }}
+  >
+    <TypingText text={insight} speed={20} />
+  </div>
+))}
+
+
             </div>
           </GlassCard>
         )}
