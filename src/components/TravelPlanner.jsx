@@ -1,316 +1,18 @@
-import React, { useState, useEffect } from "react";
-import AsyncCreatableSelect from "react-select/async-creatable";
+import React, { useState } from "react";
+import Page from "./UI/Page";
+import TopHeader from "./UI/TopHeader";
+import GlassCard from "./UI/GlassCard";
+import CTAButton from "./UI/CTAButton";
+import DateFields from "./Form/DateFields";
+import DestinationSelect from "./Form/DestinationSelect";
+import TravelerFields from "./Form/TravelerFields";
+import AIInsights from "./Results/AIInsights";
+import ResultsTable from "./Results/ResultsTable";
 
+import { formatCurrency, extractCountry } from "../utils/formatters";
+import { resolveCostTier } from "../utils/costTiers";
+import { computeVisaFeeForTraveler } from "../utils/visaCalculator";
 
-/**
- * TravelPlanner.jsx — with enhanced AI insights and typing animation
- */
-
-/* ---------------- utilities ---------------- */
-const formatCurrency = (n) =>
-  n == null || n === "" ? "-" : `$${Number(n).toFixed(2)}`;
-
-const extractCountry = (label = "") => {
-  const parts = String(label).split(",");
-  return parts.length > 1 ? parts[parts.length - 1].trim() : parts[0].trim();
-};
-
-/* ---------------- Typing Animation Component ---------------- */
-const TypingText = ({ text, speed = 30 }) => {
-  const [displayText, setDisplayText] = useState("");
-  const [currentIndex, setCurrentIndex] = useState(0);
-
-  useEffect(() => {
-    if (!text) {
-      setDisplayText("");
-      setCurrentIndex(0);
-      return;
-    }
-
-    if (currentIndex < text.length) {
-      const timeout = setTimeout(() => {
-        setDisplayText((prev) => prev + text[currentIndex]);
-        setCurrentIndex((prev) => prev + 1);
-      }, speed);
-      return () => clearTimeout(timeout);
-    }
-  }, [currentIndex, text, speed]);
-
-  useEffect(() => {
-    // reset typing when text changes
-    setDisplayText("");
-    setCurrentIndex(0);
-  }, [text]);
-
-  return (
-    <span>
-      {displayText}
-      <span className="typing-cursor">|</span>
-    </span>
-  );
-};
-
-/* ---------------- UI primitives ---------------- */
-const Page = ({ children }) => (
-  <div
-    className="tp-page"
-    style={{
-      position: "relative",
-      minHeight: "100vh",
-      backgroundColor: "#0b0b12",
-    }}
-  >
-    {/* Background image */}
-    <div
-className="min-h-screen w-full bg-cover bg-center bg-no-repeat"
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundImage: "url(/SeaMtn.jpeg)",
-        backgroundPosition: "center",
-        opacity: 1,
-        filter: "brightness(1.1) contrast(1.5)",
-        zIndex: 0,
-        pointerEvents: "none",
-      }}
-    />
-
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background:
-          "linear-gradient(to bottom, rgba(5,5,10,0.15), rgba(5,5,10,0.4))",
-        zIndex: 0,
-        pointerEvents: "none",
-      }}
-    />
-
-    <main
-      className="tp-main"
-      style={{
-        position: "relative",
-        zIndex: 1,
-        paddingTop: "3rem",
-        paddingBottom: "3rem",
-      }}
-    >
-      {children}
-    </main>
-
-    <style jsx>{`
-      .typing-cursor {
-        animation: blink 1s infinite;
-        font-weight: 100;
-      }
-      @keyframes blink {
-        0%,
-        49% {
-          opacity: 1;
-        }
-        50%,
-        100% {
-          opacity: 0;
-        }
-      }
-    `}</style>
-  </div>
-);
-
-const TopHeader = ({ title, subtitle }) => (
-  <header
-    className="space-y-2"
-    style={{ textAlign: "center", padding: "1.75rem 1rem 1.25rem" }}
-  >
-    <h1
-      className="text-3xl md:text-4xl font-extrabold tracking-tight"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.55rem 1.3rem",
-        borderRadius: "999px",
-        background:
-          "linear-gradient(135deg, rgba(255,215,128,0.95), rgba(255,140,180,0.95))",
-        color: "#1a1024",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
-      }}
-    >
-      <span style={{ fontSize: "1.4rem" }}>✈️</span>
-      <span>{title}</span>
-    </h1>
-
-    {subtitle && (
-      <p
-        className="text-sm md:text-base"
-        style={{
-          color: "#f9fafb",
-          textShadow: "0 0 10px rgba(0,0,0,0.9)",
-          maxWidth: "36rem",
-          margin: "0.5rem auto 0",
-        }}
-      >
-        {subtitle}
-      </p>
-    )}
-  </header>
-);
-
-const GlassCard = ({ children }) => (
-  <div
-    style={{
-      background: "rgba(15, 23, 42, 0.14)",          // very transparent dark tint
-      border: "1px solid rgba(255,255,255,0.25)",
-      borderRadius: "1.25rem",
-      padding: "1.25rem",
-      boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
-      marginBottom: "1rem",
-      display: "flex",
-      gap: "1.25rem",
-      alignItems: "flex-start",
-      backdropFilter: "blur(18px)",
-      WebkitBackdropFilter: "blur(18px)",
-      color: "#f9fafb",                              // default text color inside card
-    }}
-  >
-    <div style={{ flex: 1 }}>{children}</div>
-
-    <div
-      style={{
-        width: "150px",
-        height: "224px",
-        border: "1px solid #94a3b8",
-        borderRadius: "3px",
-        overflow: "hidden",
-        background: "#fff",
-        flexShrink: 0,
-      }}
-    >
-      <img
-        src="/TripGirl2.jpeg"
-        alt="Traveler illustration"
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
-    </div>
-  </div>
-);
-
-
-
-
-const CTAButton = ({ children, className = "", ...props }) => (
-  <button {...props} className={`px-6 py-3 rounded-xl font-bold ${className}`}>
-    {children}
-  </button>
-);
-
-/* ---------------- static data ---------------- */
-const FALLBACK_CITIES = [
-  "Paris, France",
-  "London, United Kingdom",
-  "Rome, Italy",
-  "Barcelona, Spain",
-  "Amsterdam, Netherlands",
-  "Berlin, Germany",
-  "Lisbon, Portugal",
-  "Istanbul, Turkey",
-  "Dubai, United Arab Emirates",
-  "Bangkok, Thailand",
-  "Singapore",
-  "Tokyo, Japan",
-  "New York, USA",
-  "Los Angeles, USA",
-  "Toronto, Canada",
-  "Sydney, Australia",
-  "Hong Kong, China",
-  "Seoul, South Korea",
-  "Bali, Indonesia",
-  "Cape Town, South Africa",
-];
-
-
-const NATIONALITY_LIST = [
-  "India",
-  "United States",
-  "United Kingdom",
-  "Canada",
-  "Germany",
-  "France",
-  "Japan",
-  "Singapore",
-  "Spain",
-  "Italy",
-];
-
-const RESIDENCY_LIST = [
-  "US Green Card",
-  "US Visa",
-  "EU PR",
-  "Schengen Visa",
-  "UK Settlement Visa",
-  "Canadian PR",
-  "GCC Resident Visa",
-  "Singapore PR",
-  "Japan Residence Card",
-];
-
-const loadSimpleOptions = (list) => async (input) => {
-  const q = (input || "").toLowerCase();
-  return list
-    .filter((x) => x.toLowerCase().includes(q))
-    .map((x) => ({ label: x, value: x }));
-};
-
-const selectStyles = {
-  control: (base, state) => ({
-    ...base,
-    fontSize: "0.875rem",
-    borderRadius: "0.75rem",
-    backgroundColor: "#ffffff",
-    borderColor: state.isFocused ? "#fbbf24" : "#d1d5db",
-    boxShadow: state.isFocused
-      ? "0 0 0 2px rgba(251,191,36,0.55)"
-      : "none",
-  }),
-  menu: (base) => ({
-    ...base,
-    fontSize: "0.875rem",
-    backgroundColor: "#0f172a",
-    color: "#f9fafb",
-  }),
-  option: (base, state) => ({
-    ...base,
-    backgroundColor: state.isFocused
-      ? "rgba(251,191,36,0.25)"
-      : "transparent",
-    color: "#f9fafb",
-  }),
-  multiValue: (base) => ({
-    ...base,
-    backgroundColor: "rgba(37,99,235,0.1)",
-  }),
-  multiValueLabel: (base) => ({
-    ...base,
-    color: "#1f2937",
-    fontWeight: 500,
-  }),
-};
-
-const hasUKPermanentStatus = (residencies) => {
-  return (Array.isArray(residencies) ? residencies : []).some(r =>
-    r.includes("settlement") || r.includes("ilr") || 
-    r.includes("indefinite leave to remain") || 
-    r.includes("permanent residence") || r.includes("pr")
-  );
-};
-
-
-/* ---------------- main component ---------------- */
 export default function TravelPlanner() {
   const [form, setForm] = useState({
     startDate: "",
@@ -323,8 +25,7 @@ export default function TravelPlanner() {
   const [aiInsights, setAiInsights] = useState([]);
   const [showInsights, setShowInsights] = useState(false);
   const [loading, setLoading] = useState(false);
-const [selectedItineraryDest, setSelectedItineraryDest] = useState(null);
-
+  const [selectedItineraryDest, setSelectedItineraryDest] = useState(null);
 
   const addTraveler = () =>
     setForm((p) => ({
@@ -342,88 +43,121 @@ const [selectedItineraryDest, setSelectedItineraryDest] = useState(null);
       return { ...p, travelers: t };
     });
 
-  /* --------- AI insights generator --------- */
-  const generateSummaryInsight = (results, days) => {
-  if (!results || results.length === 0) return [];
+  const generateSummaryInsight = (resultsArr, days) => {
+    if (!resultsArr || resultsArr.length === 0) return [];
 
-  // Sort by total cost
-  const sorted = [...results].sort((a, b) => a.total - b.total);
-  const cheapest = sorted[0];
-  const second = sorted[1];
+    const sorted = [...resultsArr].sort((a, b) => a.total - b.total);
+    const cheapest = sorted[0];
+    const second = sorted[1];
 
-  // If multiple destinations have same total, treat them as equal best options
-  const equalBest = sorted.filter(r => r.total === cheapest.total);
-  if (equalBest.length > 1) {
-    const names = equalBest.map(r => r.destination).join(" and ");
-    return [
-      `💡 Best Value: ${names} are equally good options at ${formatCurrency(cheapest.total)} for your ${days}-day trip.`
-    ];
-  }
-
-  // Otherwise, show one-line savings vs next best
-  if (second) {
-    const savings = second.total - cheapest.total;
-    const parts = [];
-
-    const flightDiff = second.flightCost - cheapest.flightCost;
-    const lodgingDiff = (second.breakdown.lodging - cheapest.breakdown.lodging) * days;
-    const foodDiff = (second.breakdown.food - cheapest.breakdown.food) * days;
-    const visaDiff = (second.visaFee - cheapest.visaFee);
-
-    if (Math.abs(lodgingDiff) > 80) parts.push(`${formatCurrency(Math.abs(lodgingDiff))} on accommodation`);
-    if (Math.abs(foodDiff) > 50) parts.push(`${formatCurrency(Math.abs(foodDiff))} on food`);
-    if (Math.abs(visaDiff) > 0) parts.push(`${formatCurrency(Math.abs(visaDiff))} on visa fees`);
-    if (Math.abs(flightDiff) > 60) parts.push(`${formatCurrency(Math.abs(flightDiff))} on flights`);
-
-    const breakdown = parts.length ? ` (mainly ${parts.join(", ")})` : "";
-    return [
-      `💡 Best Value: ${cheapest.destination} at ${formatCurrency(cheapest.total)} – saves ${formatCurrency(savings)} vs ${second.destination}${breakdown}.`
-    ];
-  }
-
-  // Only one result
-  return [
-    `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(cheapest.total)} for your ${days}-day trip.`
-  ];
-};
-
-
-const computeVisaFee = (destination, travelers) => {
-  const destCountry = extractCountry(destination).toLowerCase();
-  let total = 0;
-  
-  travelers.forEach(traveler => {
-    const nationality = Array.isArray(traveler.nationality) ? traveler.nationality[0]?.toLowerCase() : '';
-    
-    if (nationality === 'india') {
-      if (destCountry.includes('usa') || destCountry.includes('united states')) total += 185;
-      if (destCountry.includes('united kingdom') || destCountry.includes('uk')) total += 115;
-      if (['france','germany','italy','spain'].some(c => destCountry.includes(c))) total += 80;
+    const equalBest = sorted.filter((r) => r.total === cheapest.total);
+    if (equalBest.length > 1) {
+      const names = equalBest.map((r) => r.destination).join(" and ");
+      return [
+        `💡 Best Value: ${names} are equally good options at ${formatCurrency(
+          cheapest.total
+        )} for your ${days}-day trip.`,
+      ];
     }
-  });
-  
-  return total;
-};
 
+    if (second) {
+      const savings = second.total - cheapest.total;
+      const parts = [];
 
+      const flightDiff = second.flightCost - cheapest.flightCost;
+      const lodgingDiff =
+        (second.breakdown.lodging - cheapest.breakdown.lodging) * days;
+      const foodDiff =
+        (second.breakdown.food - cheapest.breakdown.food) * days;
+      const visaDiff = second.visaFee - cheapest.visaFee;
+
+      if (Math.abs(lodgingDiff) > 80)
+        parts.push(
+          `${formatCurrency(Math.abs(lodgingDiff))} on accommodation`
+        );
+      if (Math.abs(foodDiff) > 50)
+        parts.push(`${formatCurrency(Math.abs(foodDiff))} on food`);
+      if (Math.abs(visaDiff) > 0)
+        parts.push(`${formatCurrency(Math.abs(visaDiff))} on visa fees`);
+      if (Math.abs(flightDiff) > 60)
+        parts.push(`${formatCurrency(Math.abs(flightDiff))} on flights`);
+
+      const breakdown = parts.length ? ` (mainly ${parts.join(", ")})` : "";
+      return [
+        `💡 Best Value: ${cheapest.destination} at ${formatCurrency(
+          cheapest.total
+        )} – saves ${formatCurrency(
+          savings
+        )} vs ${second.destination}${breakdown}.`,
+      ];
+    }
+
+    return [
+      `💡 Estimated trip cost for ${cheapest.destination}: ${formatCurrency(
+        cheapest.total
+      )} for your ${days}-day trip.`,
+    ];
+  };
+
+  const buildItinerary = (destination, days) => {
+    if (!destination || !days || days < 1) return [];
+
+    if (days <= 3) {
+      return [
+        `Day 1: Arrival in ${destination}, explore the old town and a key viewpoint.`,
+        `Day 2: Main museums/landmarks in the morning, food market + local neighborhood in the evening.`,
+        `Day 3: Half‑day side trip or beach/park time, then farewell dinner in a local area.`,
+      ];
+    }
+
+    if (days <= 7) {
+      return [
+        `Day 1: Arrive in ${destination}, settle in and explore the immediate area.`,
+        `Day 2: Classic city highlights (old town, main square, top 2–3 landmarks).`,
+        `Day 3: Museum / culture day + evening food tour or tapas crawl.`,
+        `Day 4: Day trip or different district (beach / modern area / hills).`,
+        `Day 5: Flexible day for shopping, cafés, and second‑tier sights.`,
+        `Day 6: Nature or coastal escape if available, or a themed day (art, architecture, wine).`,
+        `Day 7: Buffer / free day, revisit favorite spots, farewell dinner.`,
+      ];
+    }
+
+    return [
+      `First 2–3 days: Core city highlights, old town, main museums and viewpoints in ${destination}.`,
+      `Middle days: Mix of day trips, neighborhood exploration, and food experiences.`,
+      `Final days: Buffer for weather, slower days in parks or cafés, and revisiting favorites.`,
+    ];
+  };
 
   const handleSubmit = async (e) => {
-  e?.preventDefault();
-  setLoading(true);
-  setShowInsights(false);
+    e?.preventDefault();
+    setLoading(true);
+    setShowInsights(false);
 
-  const days = Math.max(1, Math.round((new Date(form.endDate) - new Date(form.startDate)) / (1000 * 60 * 60 * 24)));
+    const days = Math.max(
+      1,
+      Math.round(
+        (new Date(form.endDate) - new Date(form.startDate)) /
+          (1000 * 60 * 60 * 24)
+      )
+    );
 
-  // Your existing API calls
-  let costsRes = [], flightsRes = [], visaRes = [];
-  try { costsRes = await fetch("/api/costs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+    let costsRes = {};
+    let flightsRes = {};
+    let visaRes = {};
+
+    try {
+      costsRes = await fetch("/api/costs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
           destinations: form.destinations.map((d) => d.value),
         }),
       })
         .then((r) => r.json())
-        .catch(() => []);
+        .catch(() => ({}));
     } catch {
-      costsRes = [];
+      costsRes = {};
     }
 
     try {
@@ -436,9 +170,9 @@ const computeVisaFee = (destination, travelers) => {
         }),
       })
         .then((r) => r.json())
-        .catch(() => []);
+        .catch(() => ({}));
     } catch {
-      flightsRes = [];
+      flightsRes = {};
     }
 
     try {
@@ -451,217 +185,34 @@ const computeVisaFee = (destination, travelers) => {
         }),
       })
         .then((r) => r.json())
-        .catch(() => []);
+        .catch(() => ({}));
     } catch {
-      visaRes = [];
+      visaRes = {};
     }
 
-    const COST_TIERS = {
-      expensive: { lodging: 140, food: 75, transport: 35, misc: 25 },
-      mid: { lodging: 85, food: 45, transport: 22, misc: 15 },
-      cheap: { lodging: 45, food: 25, transport: 14, misc: 10 },
-    };
+    const built = form.destinations.map((d, i) => {
+      const destLabel = d.value;
+      const destCountry = extractCountry(destLabel);
 
-    const EXPENSIVE_COUNTRIES = [
-      "United States",
-      "Canada",
-      "Japan",
-      "Singapore",
-      "France",
-      "Germany",
-      "United Kingdom",
-      "Italy",
-      "Switzerland",
-      "Australia",
-    ];
-    const MID_COUNTRIES = [
-      "Turkey",
-      "Thailand",
-      "Malaysia",
-      "China",
-      "Mexico",
-      "Brazil",
-      "South Africa",
-      "Poland",
-      "Portugal",
-    ];
+      const apiBreakdown = costsRes?.results?.[i]?.breakdown || {};
+      const tierFallback = resolveCostTier(destLabel);
 
-    const SCHENGEN = [
-      "france",
-      "germany",
-      "italy",
-      "spain",
-      "portugal",
-      "netherlands",
-      "belgium",
-      "sweden",
-      "norway",
-      "finland",
-      "switzerland",
-      "austria",
-      "greece",
-      "denmark",
-      "iceland",
-      "czech republic",
-      "poland",
-      "hungary",
-      "luxembourg",
-      "malta",
-    ];
-    const TURKEY_VISA_FREE = [
-      "united states",
-      "united kingdom",
-      "germany",
-      "france",
-      "japan",
-      "canada",
-      "australia",
-    ];
+      const breakdown = {
+        lodging: Number(apiBreakdown.lodging ?? tierFallback.lodging),
+        food: Number(apiBreakdown.food ?? tierFallback.food),
+        transport: Number(apiBreakdown.transport ?? tierFallback.transport),
+        misc: Number(apiBreakdown.misc ?? tierFallback.misc),
+      };
 
-    const computeVisaFeeForTraveler = (destCountryRaw, traveler) => {
-  const dest = (destCountryRaw || "").toLowerCase();
-  const nationalities = (
-    Array.isArray(traveler.nationality)
-      ? traveler.nationality
-      : [traveler.nationality]
-  ).map((n) => (n || "").toLowerCase());
-  const residencies = (
-    Array.isArray(traveler.residency)
-      ? traveler.residency
-      : [traveler.residency]
-  ).map((r) => (r || "").toLowerCase());
-
-  // Treat ILR / PR / settlement as equivalent UK permanent status
-  const hasUKPermanentStatus = (form.travelers[0]?.residency || []).some((r) =>
-    r.includes("settlement") ||
-    r.includes("ilr") ||
-    r.includes("indefinite leave to remain") ||
-    r.includes("permanent residence") ||
-    r.includes("pr")
-  );
-
-  if (nationalities.includes(dest)) return 0;
-
-  if (SCHENGEN.includes(dest)) {
-    if (
-      residencies.some((r) => r.includes("schengen")) ||
-      residencies.some((r) => r.includes("eu pr")) ||
-      nationalities.some((n) => SCHENGEN.includes(n))
-    )
-      return 0;
-    return 105.62;
-  }
-
-  if (dest === "turkey" || dest.includes("turkey")) {
-    if (nationalities.some((n) => TURKEY_VISA_FREE.includes(n))) return 0;
-    return 50;
-  }
-
-  if (
-    dest === "united states" ||
-    dest === "usa" ||
-    dest === "united states of america" ||
-    dest.includes("hawaii")
-  ) {
-    if (
-      nationalities.includes("united states") ||
-      residencies.some((r) => r.includes("green card"))
-    )
-      return 0;
-    return 160;
-  }
-
-  // Example: if you ever add UK-destination-specific logic, you can reuse hasUKPermanentStatus there
-  // if (dest === "united kingdom" || dest.includes("uk")) {
-  //   if (nationalities.includes("united kingdom") || hasUKPermanentStatus)
-  //     return 0;
-  //   return SOME_FEE;
-  // }
-
-  if (dest === "japan" || dest === "canada") {
-    if (
-      nationalities.includes("united states") ||
-      nationalities.includes("canada") ||
-      nationalities.includes("japan")
-    )
-      return 0;
-    return 0;
-  }
-
-  return 0;
-};
-
-
-    const resolveCostTier = (destination) => {
-      const city = String(destination || "").toLowerCase();
-      const country = extractCountry(destination).toLowerCase();
-
-      if (city.includes("new york")) return COST_TIERS.expensive;
-      if (city.includes("tokyo")) return COST_TIERS.expensive;
-      if (city.includes("singapore")) return COST_TIERS.expensive;
-      if (
-        city.includes("paris") ||
-        city.includes("rome") ||
-        city.includes("milan") ||
-        city.includes("madrid") ||
-        city.includes("barcelona")
-      )
-        return COST_TIERS.expensive;
-      if (
-        city.includes("london") ||
-        city.includes("zurich") ||
-        city.includes("geneva")
-      )
-        return COST_TIERS.expensive;
-
-      if (
-        city.includes("istanbul") ||
-        city.includes("bangkok") ||
-        city.includes("kuala") ||
-        city.includes("dubai")
-      )
-        return COST_TIERS.mid;
-
-      if (
-        city.includes("delhi") ||
-        city.includes("mumbai") ||
-        city.includes("bangalore") ||
-        city.includes("jakarta") ||
-        city.includes("manila")
-      )
-        return COST_TIERS.cheap;
-
-      if (
-        EXPENSIVE_COUNTRIES.map((x) => x.toLowerCase()).includes(country)
-      )
-        return COST_TIERS.expensive;
-      if (MID_COUNTRIES.map((x) => x.toLowerCase()).includes(country))
-        return COST_TIERS.mid;
-      return COST_TIERS.cheap;
-    };
-
-    const built = (form.destinations || []).map((d, i) => {
-      const tierFallback = resolveCostTier(d.value);
-const apiBreakdown = costsRes?.results?.[i]?.breakdown || {};
-
-const breakdown = {
-  lodging: Number(apiBreakdown.lodging ?? tierFallback.lodging),
-  food: Number(apiBreakdown.food ?? tierFallback.food),
-  transport: Number(apiBreakdown.transport ?? tierFallback.transport),
-  misc: Number(apiBreakdown.misc ?? tierFallback.misc),
-};
-
-
-      const destCountry = extractCountry(d.value);
       const visaFee =
-        (visaRes && visaRes[i]) ||
+        visaRes?.results?.[i]?.totalVisaFee ??
         form.travelers.reduce(
           (sum, t) => sum + computeVisaFeeForTraveler(destCountry, t),
           0
         );
+
       const flightCost = Number(
-        flightsRes?.[i]?.price ??
-          flightsRes?.[i]?.cost ??
+        flightsRes?.results?.[i]?.flightCost ??
           (form.origin ? 450 : 500)
       );
 
@@ -671,34 +222,42 @@ const breakdown = {
           Number(breakdown.transport || 0) +
           Number(breakdown.misc || 0)) *
         days;
+
       const total = Math.round(
-        flightCost + tripDaily + Number(visaFee || 0)
+        Number(flightCost || 0) + Number(tripDaily || 0) + Number(visaFee || 0)
       );
 
       return {
-        destination: d.value,
+        destination: destLabel,
         breakdown,
         visaFee: Number(visaFee || 0),
         flightCost,
         total,
       };
     });
-const sorted = [...built].sort((a, b) => a.total - b.total);
-const cheapest = sorted[0];
 
-const insights = generateSummaryInsight(sorted, days);
-setAiInsights(insights);
-setSelectedItineraryDest(cheapest?.destination || null);
+    setResults(built);
 
-setTimeout(() => setShowInsights(true), 300);
-setLoading(false);
+    const sorted = [...built].sort((a, b) => a.total - b.total);
+    const cheapest = sorted[0];
 
+    const insights = generateSummaryInsight(sorted, days);
+    setAiInsights(insights);
+    setSelectedItineraryDest(cheapest?.destination || null);
 
-setResults(built);
-setLoading(false);
-setTimeout(() => setShowInsights(true), 300);
-
+    setTimeout(() => setShowInsights(true), 300);
+    setLoading(false);
   };
+
+  const days = Math.max(
+    1,
+    form.startDate && form.endDate
+      ? Math.round(
+          (new Date(form.endDate) - new Date(form.startDate)) /
+            (1000 * 60 * 60 * 24)
+        )
+      : 1
+  );
 
   return (
     <Page>
@@ -709,41 +268,8 @@ setTimeout(() => setShowInsights(true), 300);
         />
 
         <GlassCard>
-          <form onSubmit={handleSubmit} className="space-y-3"><div className="w-full overflow-x-auto"><div
-  style={{
-    display: "flex",
-    flexDirection: "row",
-    gap: "0.1rem",
-    width: "100%",
-    flexWrap: "nowrap",
-  }}><div style={{ flex: 1, minWidth: 0 }}>
-    <label className="text-xs font-semibold block mb-1">Start Date </label>
-    <input
-      type="date"
-      value={form.startDate}
-      onChange={(e) =>
-        setForm((p) => ({ ...p, startDate: e.target.value }))
-      }
-      className="w-full p-2 border rounded-lg text-sm"
-      required
-    />
-  </div><div style={{ flex: 1, minWidth: 0 }}>
-    <label className="text-xs font-semibold block mb-1">End Date </label>
-    <input
-      type="date"
-      value={form.endDate}
-      onChange={(e) =>
-        setForm((p) => ({ ...p, endDate: e.target.value }))
-      }
-      className="w-full p-2 border rounded-lg text-sm"
-      required
-    />
-  </div>
-</div>
-
-</div>
-
-
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <DateFields form={form} setForm={setForm} />
 
             <div>
               <label className="text-xs font-semibold block mb-1">
@@ -759,136 +285,19 @@ setTimeout(() => setShowInsights(true), 300);
               />
             </div>
 
-            <div>
-              <label className="text-xs font-semibold block mb-1">
-                Destinations
-              </label>
-              <AsyncCreatableSelect
-  isMulti
-  defaultOptions={FALLBACK_CITIES.map((x) => ({ label: x, value: x }))}
-  loadOptions={loadSimpleOptions(FALLBACK_CITIES)}
-  value={form.destinations}
-  onChange={(v) => setForm((p) => ({ ...p, destinations: v || [] }))}
-  placeholder="Start typing a city, or add your own like “Oslo, Norway”"
-  formatCreateLabel={(input) => `Add destination: ${input} (City, Country)`}
-  noOptionsMessage={({ inputValue }) =>
-    inputValue
-      ? `No matches. Press Enter to add “${inputValue}” as City, Country.`
-      : "Type a destination or create your own (City, Country)."
-  }
-  styles={selectStyles}
- />
+            <DestinationSelect form={form} setForm={setForm} />
 
-            </div>
-
-            {form.travelers.map((t, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-2 md:grid-cols-4 gap-2 p-2 bg-white bg-opacity-40 rounded-lg"
-              >
-                {/*<div>
-                  <label className="text-xs font-semibold block mb-1">
-                    Name
-                  </label>
-                  <input
-                    value={t.name}
-                    onChange={(e) =>
-                      updateTraveler(i, "name", e.target.value)
-                    }
-                    className="w-full p-1.5 border rounded text-sm"
-                  />
-                </div>*/}
-
-                <div>
-                  <label className="text-xs font-semibold block mb-1">
-                    Citizenship
-                  </label>
-                  <AsyncCreatableSelect
-  isMulti
-  defaultOptions={NATIONALITY_LIST.map((n) => ({ label: n, value: n }))}
-  loadOptions={loadSimpleOptions(NATIONALITY_LIST)}
-  value={
-    Array.isArray(t.nationality)
-      ? t.nationality.map((n) => ({ label: n, value: n }))
-      : []
-  }
-  onChange={(o) =>
-    updateTraveler(i, "nationality", o ? o.map((x) => x.value) : [])
-  }
-  placeholder="Start typing a passport country (e.g. India, United Kingdom)"
-  formatCreateLabel={(input) => `Add citizenship: ${input}`}
-  noOptionsMessage={({ inputValue }) =>
-    inputValue
-      ? `No match. Press Enter to add “${inputValue}” as a citizenship.`
-      : "Type or add a citizenship (country name)."
-  }
-  styles={selectStyles}
-/>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold block mb-1">
-                    Visa / Residency
-                  </label>
-                  <AsyncCreatableSelect
-  isMulti
-  defaultOptions={RESIDENCY_LIST.map((r) => ({ label: r, value: r }))}
-  loadOptions={loadSimpleOptions(RESIDENCY_LIST)}
-  value={
-    Array.isArray(t.residency)
-      ? t.residency.map((n) => ({ label: n, value: n }))
-      : []
-  }
-  onChange={(o) =>
-    updateTraveler(i, "residency", o ? o.map((x) => x.value) : [])
-  }
-  placeholder="e.g. Schengen Visa, UK ILR / PR, US Green Card"
-  formatCreateLabel={(input) => `Add residency/visa: ${input}`}
-  noOptionsMessage={({ inputValue }) =>
-    inputValue
-      ? `No match. Add your exact status, e.g. “${inputValue} (ILR / PR / visa type)”.`
-      : "Type or add any visa or residency status (PR, ILR, long-term visa, etc.)."
-  }
-  styles={selectStyles}
-/>
-                </div>
-
-                {/*<div>
-                  <label className="text-xs font-semibold block mb-1">
-                    Age
-                  </label>
-                  <input
-                    type="number"
-                    value={t.age}
-                    onChange={(e) =>
-                      updateTraveler(i, "age", e.target.value)
-                    }
-                    className="w-full p-1.5 border rounded text-sm"
-                  />
-                </div>
-*/}
-              </div>
-            ))}
+            <TravelerFields
+              form={form}
+              addTraveler={addTraveler}
+              updateTraveler={updateTraveler}
+            />
 
             <div className="flex gap-2">
-  {/*
-
-              <button
-                type="button"
-                onClick={addTraveler}
-                className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-sm font-medium"
-              >
-                + Add Traveler
-              </button>
-  */}
-
               <CTAButton
                 type="submit"
-                className="bg-gradient-to-r from-amber-300 via-fuchsia-400 to-sky-400
-                  text-slate-950 text-sm font-extrabold tracking-wide
-                  shadow-lg shadow-fuchsia-900/60
-                  hover:brightness-110 hover:shadow-xl
-                  transition transform hover:-translate-y-0.5 flex-1"
+                className="bg-gradient-to-r from-amber-300 via-fuchsia-400 to-sky-400 text-slate-950 text-sm font-extrabold tracking-wide shadow-lg shadow-fuchsia-900/60 hover:brightness-110 hover:shadow-xl transition transform hover:-translate-y-0.5 flex-1"
+                disabled={loading}
               >
                 {loading ? "Analyzing..." : "FIND BEST TRIPS"}
               </CTAButton>
@@ -896,103 +305,99 @@ setTimeout(() => setShowInsights(true), 300);
           </form>
         </GlassCard>
 
-        {showInsights && aiInsights.length > 0 && (
+        {showInsights && (
           <GlassCard>
-            <div
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(236, 72, 153, 0.1))",
-                borderRadius: "0.75rem",
-                padding: "1rem",
-                border: "1px solid rgba(139, 92, 246, 0.2)",
-              }}
-            >
-              <h3 className="font-bold text-base mb-3 flex items-center gap-2">
-                <span>🤖</span>
-                <span>AI Travel Insights</span>
-              </h3>
-     {aiInsights.map((insight, i) => (
-  <div
-    key={i}
-    className="text-sm leading-relaxed"
-    style={{
-      padding: "0.75rem",
-      background: "rgba(255, 255, 255, 0.85)",
-      borderRadius: "0.5rem",
-      borderLeft: "3px solid rgba(139, 92, 246, 0.6)",
-      color: "#111827", // dark slate
-    }}
-  >
-    <TypingText text={insight} speed={20} />
-  </div>
-))}
+            <AIInsights aiInsights={aiInsights} />
 
-
-            </div>
+            {results.length > 0 && selectedItineraryDest && (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "0.75rem",
+                  background: "rgba(15, 23, 42, 0.4)",
+                  border: "1px solid rgba(148, 163, 184, 0.6)",
+                  color: "#e5e7eb",
+                }}
+              >
+                <div
+                  style={{
+                    marginBottom: "0.5rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontWeight: 600 }}>
+                    🗺️ Tentative itinerary for {selectedItineraryDest}
+                  </span>
+                  {results.length > 1 && (
+                    <div style={{ fontSize: "0.75rem" }}>
+                      Show itinerary for:&nbsp;
+                      {results.map((r) => (
+                        <button
+                          key={r.destination}
+                          type="button"
+                          onClick={() =>
+                            setSelectedItineraryDest(r.destination)
+                          }
+                          style={{
+                            marginLeft: "0.25rem",
+                            padding: "0.15rem 0.45rem",
+                            borderRadius: "999px",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "0.7rem",
+                            background:
+                              r.destination === selectedItineraryDest
+                                ? "rgba(251, 191, 36, 0.9)"
+                                : "rgba(148, 163, 184, 0.4)",
+                            color:
+                              r.destination === selectedItineraryDest
+                                ? "#111827"
+                                : "#e5e7eb",
+                          }}
+                        >
+                          {r.destination}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <ul
+                  style={{
+                    fontSize: "0.8rem",
+                    lineHeight: 1.5,
+                    paddingLeft: "1rem",
+                  }}
+                >
+                  {buildItinerary(selectedItineraryDest, days).map(
+                    (line, idx) => (
+                      <li
+                        key={idx}
+                        style={{
+                          marginBottom: "0.25rem",
+                          listStyleType: "disc",
+                        }}
+                      >
+                        {line}
+                      </li>
+                    )
+                  )}
+                </ul>
+              </div>
+            )}
           </GlassCard>
         )}
 
         {results.length > 0 && (
           <GlassCard>
-            <div style={{ overflowX: "auto" }}>
-              <table className="w-full border text-xs">
-                <thead className="bg-slate-100 bg-opacity-80">
-                  <tr>
-                    <th className="p-1.5">Destination</th>
-                    <th className="p-1.5">Flight</th>
-                    <th className="p-1.5">Lodging</th>
-                    <th className="p-1.5">Food</th>
-                    <th className="p-1.5">Transport</th>
-                    <th className="p-1.5">Misc</th>
-                    <th className="p-1.5">Visa</th>
-                    <th className="p-1.5">Total</th>
-                    <th className="p-1.5">Book</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.map((r, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-1.5">{r.destination}</td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.flightCost)}
-                      </td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.breakdown?.lodging || 0)}
-                      </td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.breakdown?.food || 0)}
-                      </td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.breakdown?.transport || 0)}
-                      </td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.breakdown?.misc || 0)}
-                      </td>
-                      <td className="p-1.5 text-right">
-                        {formatCurrency(r.visaFee)}
-                      </td>
-                      <td className="p-1.5 text-right font-bold">
-                        {formatCurrency(r.total)}
-                      </td>
-                      <td className="p-1.5 text-center">
-                        <a
-                          href={`https://www.kayak.com/flights/${
-                            form.origin || "NYC"
-                          }/${encodeURIComponent(
-                            r.destination.split(",")[0]
-                          )}/${form.startDate}/${form.endDate}?affiliate=tripsgenie`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-indigo-600 font-semibold text-xs"
-                        >
-                          Book
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <ResultsTable
+              results={results}
+              origin={form.origin}
+              startDate={form.startDate}
+              endDate={form.endDate}
+            />
           </GlassCard>
         )}
       </div>
